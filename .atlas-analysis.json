@@ -1,0 +1,88 @@
+{
+  "projectType": "api-service",
+  "projectName": "OpenRing",
+  "projectDescription": "An open-source webring API built with Cloudflare Workers that creates and manages retro-style website navigation rings",
+  "theme": "palm",
+  "primaryColor": "#8B5CF6",
+  "lightColor": "#A78BFA",
+  "darkColor": "#7C3AED",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/wrangler",
+              "deployment/cloudflare-dashboard",
+              "deployment/configuration"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/widget",
+              "integration/javascript",
+              "integration/managing-sites"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/local-development",
+              "guides/authentication",
+              "guides/cloudflare-kv"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Navigation",
+            "pages": [
+              "api/navigation/next",
+              "api/navigation/prev",
+              "api/navigation/random",
+              "api/navigation/list"
+            ]
+          },
+          {
+            "group": "Admin",
+            "pages": [
+              "api/admin/add-site",
+              "api/admin/remove-site"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Circular webring navigation (next, previous, random)",
+    "REST API with OpenAPI documentation",
+    "Admin API for managing sites",
+    "Serverless deployment on Cloudflare Workers",
+    "Data persistence with Cloudflare KV",
+    "Simple HTML widget integration"
+  ],
+  "publicApiSurface": [
+    "GET /next",
+    "GET /prev",
+    "GET /random",
+    "GET /list",
+    "POST /admin/sites",
+    "DELETE /admin/sites",
+    "GET /docs",
+    "GET /openapi.json"
+  ]
+}
