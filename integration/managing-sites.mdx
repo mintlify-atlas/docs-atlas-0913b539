@@ -1,0 +1,629 @@
+---
+title: Managing Sites
+description: Add and remove sites from your webring using the admin API
+---
+
+The OpenRing admin API allows you to manage webring membership using authenticated HTTP requests. All admin endpoints require a bearer token for authentication.
+
+## Authentication
+
+All admin endpoints require the `Authorization` header with your admin token:
+
+```bash
+Authorization: Bearer YOUR_ADMIN_TOKEN
+```
+
+<Warning>
+Keep your admin token secure! Anyone with this token can add or remove sites from your webring.
+</Warning>
+
+### Setting Your Admin Token
+
+During deployment, you set the admin token as an environment variable:
+
+<CodeGroup>
+
+```bash Wrangler CLI
+# Generate a secure token
+openssl rand -hex 32
+
+# Set it as a secret
+wrangler secret put ADMIN_TOKEN
+# Paste your token when prompted
+```
+
+```bash Local Development
+# Create .dev.vars file
+echo "ADMIN_TOKEN=your-local-dev-token" > .dev.vars
+```
+
+```bash Environment Variable
+# For Cloudflare Dashboard or other platforms
+ADMIN_TOKEN=your-secure-token-here
+```
+
+</CodeGroup>
+
+<Tip>
+Generate a cryptographically secure token using `openssl rand -hex 32` or any password manager. Avoid simple passwords or predictable values.
+</Tip>
+
+## Adding Sites
+
+Add a new site to your webring with `POST /admin/sites`:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worker.workers.dev/admin/sites \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "name": "Example Site",
+    "description": "A cool website",
+    "image": "https://example.com/banner.png"
+  }'
+```
+
+```bash HTTPie
+http POST https://your-worker.workers.dev/admin/sites \
+  Authorization:"Bearer YOUR_ADMIN_TOKEN" \
+  url="https://example.com" \
+  name="Example Site" \
+  description="A cool website" \
+  image="https://example.com/banner.png"
+```
+
+```javascript JavaScript
+const response = await fetch('https://your-worker.workers.dev/admin/sites', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_ADMIN_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://example.com',
+    name: 'Example Site',
+    description: 'A cool website',
+    image: 'https://example.com/banner.png'
+  })
+});
+
+const site = await response.json();
+console.log('Added:', site);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://your-worker.workers.dev/admin/sites',
+    headers={
+        'Authorization': 'Bearer YOUR_ADMIN_TOKEN',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'url': 'https://example.com',
+        'name': 'Example Site',
+        'description': 'A cool website',
+        'image': 'https://example.com/banner.png'
+    }
+)
+
+site = response.json()
+print('Added:', site)
+```
+
+</CodeGroup>
+
+### Request Body Schema
+
+Based on the source code at `src/schemas/admin.ts:3`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string (URL) | Yes | Full URL of the site to add (must include `https://`) |
+| `name` | string | Yes | Display name of the site |
+| `description` | string | No | Short description of the site |
+| `image` | string (URL) | No | Banner or avatar image URL (traditionally 88×31 pixels) |
+
+<Info>
+Both `description` and `image` are optional fields. You can add a site with just a URL and name.
+</Info>
+
+### Success Response
+
+**Status:** `201 Created`
+
+```json
+{
+  "url": "https://example.com",
+  "name": "Example Site",
+  "description": "A cool website",
+  "image": "https://example.com/banner.png"
+}
+```
+
+### Error Responses
+
+<Tabs>
+  <Tab title="401 Unauthorized">
+    ```json
+    {
+      "error": "Unauthorized. Invalid admin token"
+    }
+    ```
+    
+    **Cause:** Missing or incorrect `Authorization` header (see `src/routes/admin.ts:10`)
+  </Tab>
+  
+  <Tab title="400 Bad Request">
+    ```json
+    {
+      "error": "Invalid request body"
+    }
+    ```
+    
+    **Cause:** Invalid URL format or missing required fields
+  </Tab>
+  
+  <Tab title="409 Conflict">
+    ```json
+    {
+      "error": "Site already exists in the webring"
+    }
+    ```
+    
+    **Cause:** A site with this exact URL is already in the webring (see `src/routes/admin.ts:112`)
+  </Tab>
+  
+  <Tab title="500 Server Error">
+    ```json
+    {
+      "error": "Failed to add site"
+    }
+    ```
+    
+    **Cause:** Internal error, possibly KV storage issue
+  </Tab>
+</Tabs>
+
+## Removing Sites
+
+Remove a site from your webring with `DELETE /admin/sites`:
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE https://your-worker.workers.dev/admin/sites \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com"
+  }'
+```
+
+```bash HTTPie
+http DELETE https://your-worker.workers.dev/admin/sites \
+  Authorization:"Bearer YOUR_ADMIN_TOKEN" \
+  url="https://example.com"
+```
+
+```javascript JavaScript
+const response = await fetch('https://your-worker.workers.dev/admin/sites', {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer YOUR_ADMIN_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://example.com'
+  })
+});
+
+const removed = await response.json();
+console.log('Removed:', removed);
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    'https://your-worker.workers.dev/admin/sites',
+    headers={
+        'Authorization': 'Bearer YOUR_ADMIN_TOKEN',
+        'Content-Type': 'application/json'
+    },
+    json={'url': 'https://example.com'}
+)
+
+removed = response.json()
+print('Removed:', removed)
+```
+
+</CodeGroup>
+
+### Request Body Schema
+
+Based on the source code at `src/schemas/admin.ts:32`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string (URL) | Yes | Full URL of the site to remove |
+
+### Success Response
+
+**Status:** `200 OK`
+
+Returns the removed site data:
+
+```json
+{
+  "url": "https://example.com",
+  "name": "Example Site",
+  "description": "A cool website",
+  "image": "https://example.com/banner.png"
+}
+```
+
+### Error Responses
+
+<Tabs>
+  <Tab title="401 Unauthorized">
+    ```json
+    {
+      "error": "Unauthorized. Invalid admin token"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="404 Not Found">
+    ```json
+    {
+      "error": "Site not found in webring"
+    }
+    ```
+    
+    **Cause:** The specified URL doesn't exist in the webring (see `src/routes/admin.ts:206`)
+  </Tab>
+  
+  <Tab title="400 Bad Request">
+    ```json
+    {
+      "error": "Invalid request body"
+    }
+    ```
+    
+    **Cause:** Invalid URL format or missing `url` field
+  </Tab>
+  
+  <Tab title="500 Server Error">
+    ```json
+    {
+      "error": "Failed to remove site"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Bulk Operations
+
+While the API doesn't have dedicated bulk endpoints, you can add multiple sites using a script:
+
+<CodeGroup>
+
+```bash Bash Script
+#!/bin/bash
+
+ADMIN_TOKEN="your-admin-token"
+BASE_URL="https://your-worker.workers.dev"
+
+# Array of sites to add
+sites=(
+  '{"url":"https://site1.com","name":"Site One"}'
+  '{"url":"https://site2.com","name":"Site Two"}'
+  '{"url":"https://site3.com","name":"Site Three"}'
+)
+
+for site in "${sites[@]}"; do
+  echo "Adding: $site"
+  curl -X POST "$BASE_URL/admin/sites" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$site"
+  echo ""
+done
+```
+
+```javascript Node.js
+const ADMIN_TOKEN = 'your-admin-token';
+const BASE_URL = 'https://your-worker.workers.dev';
+
+const sites = [
+  { url: 'https://site1.com', name: 'Site One' },
+  { url: 'https://site2.com', name: 'Site Two' },
+  { url: 'https://site3.com', name: 'Site Three' }
+];
+
+async function addSites() {
+  for (const site of sites) {
+    try {
+      const response = await fetch(`${BASE_URL}/admin/sites`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ADMIN_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(site)
+      });
+      
+      const result = await response.json();
+      console.log('Added:', result);
+    } catch (error) {
+      console.error('Failed to add', site.url, error);
+    }
+  }
+}
+
+addSites();
+```
+
+```python Python
+import requests
+import time
+
+ADMIN_TOKEN = 'your-admin-token'
+BASE_URL = 'https://your-worker.workers.dev'
+
+sites = [
+    {'url': 'https://site1.com', 'name': 'Site One'},
+    {'url': 'https://site2.com', 'name': 'Site Two'},
+    {'url': 'https://site3.com', 'name': 'Site Three'}
+]
+
+for site in sites:
+    try:
+        response = requests.post(
+            f'{BASE_URL}/admin/sites',
+            headers={
+                'Authorization': f'Bearer {ADMIN_TOKEN}',
+                'Content-Type': 'application/json'
+            },
+            json=site
+        )
+        print(f"Added: {response.json()}")
+    except Exception as e:
+        print(f"Failed to add {site['url']}: {e}")
+    
+    time.sleep(0.1)  # Rate limiting
+```
+
+</CodeGroup>
+
+<Note>
+Since OpenRing stores data in Cloudflare KV, there's no strict rate limiting, but it's good practice to add small delays between requests in bulk operations.
+</Note>
+
+## Listing Current Sites
+
+To verify sites were added correctly, use the public list endpoint (no authentication required):
+
+```bash
+curl https://your-worker.workers.dev/list
+```
+
+**Response:**
+
+```json
+{
+  "sites": [
+    {
+      "url": "https://site1.com",
+      "name": "Site One"
+    },
+    {
+      "url": "https://site2.com",
+      "name": "Site Two",
+      "description": "A description",
+      "image": "https://site2.com/banner.png"
+    }
+  ]
+}
+```
+
+## Creating an Admin Dashboard
+
+You can build a simple web interface for managing sites:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Webring Admin</title>
+</head>
+<body>
+  <h1>Webring Admin</h1>
+  
+  <section>
+    <h2>Add Site</h2>
+    <form id="add-form">
+      <input type="text" id="url" placeholder="URL" required>
+      <input type="text" id="name" placeholder="Name" required>
+      <input type="text" id="description" placeholder="Description">
+      <input type="text" id="image" placeholder="Image URL">
+      <button type="submit">Add Site</button>
+    </form>
+  </section>
+  
+  <section>
+    <h2>Current Sites</h2>
+    <div id="sites-list"></div>
+  </section>
+
+  <script>
+    const ADMIN_TOKEN = prompt('Enter admin token:');
+    const BASE_URL = 'https://your-worker.workers.dev';
+
+    // Add site
+    document.getElementById('add-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const site = {
+        url: document.getElementById('url').value,
+        name: document.getElementById('name').value,
+        description: document.getElementById('description').value || undefined,
+        image: document.getElementById('image').value || undefined
+      };
+      
+      try {
+        const response = await fetch(`${BASE_URL}/admin/sites`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${ADMIN_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(site)
+        });
+        
+        if (response.ok) {
+          alert('Site added successfully!');
+          loadSites();
+          e.target.reset();
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.error}`);
+        }
+      } catch (error) {
+        alert('Failed to add site');
+      }
+    });
+
+    // Load sites
+    async function loadSites() {
+      const response = await fetch(`${BASE_URL}/list`);
+      const data = await response.json();
+      
+      const list = document.getElementById('sites-list');
+      list.innerHTML = data.sites.map(site => `
+        <div>
+          <strong>${site.name}</strong> - ${site.url}
+          <button onclick="removeSite('${site.url}')">Remove</button>
+        </div>
+      `).join('');
+    }
+
+    // Remove site
+    async function removeSite(url) {
+      if (!confirm(`Remove ${url}?`)) return;
+      
+      try {
+        const response = await fetch(`${BASE_URL}/admin/sites`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${ADMIN_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url })
+        });
+        
+        if (response.ok) {
+          alert('Site removed!');
+          loadSites();
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.error}`);
+        }
+      } catch (error) {
+        alert('Failed to remove site');
+      }
+    }
+
+    // Initial load
+    loadSites();
+  </script>
+</body>
+</html>
+```
+
+<Warning>
+This example stores the admin token in memory. For production use, implement proper authentication and never expose your admin token in client-side code. Consider building a proper backend or using Cloudflare Access.
+</Warning>
+
+## Best Practices
+
+<Steps>
+  <Step title="Validate URLs before adding">
+    Ensure sites are accessible and belong to willing participants:
+    
+    ```javascript
+    async function validateSite(url) {
+      try {
+        const response = await fetch(url, { method: 'HEAD' });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Keep a backup of your webring">
+    Periodically export the sites list:
+    
+    ```bash
+    curl https://your-worker.workers.dev/list > webring-backup-$(date +%Y%m%d).json
+    ```
+  </Step>
+  
+  <Step title="Document site requirements">
+    Create guidelines for members:
+    - Must link back to the webring
+    - Content guidelines
+    - Banner image specifications (88×31 pixels)
+    - Update frequency expectations
+  </Step>
+  
+  <Step title="Monitor for broken links">
+    Periodically check that member sites are still active:
+    
+    ```javascript
+    async function checkAllSites() {
+      const response = await fetch(`${BASE_URL}/list`);
+      const { sites } = await response.json();
+      
+      for (const site of sites) {
+        try {
+          const check = await fetch(site.url, { method: 'HEAD' });
+          if (!check.ok) {
+            console.warn(`Site down: ${site.url}`);
+          }
+        } catch (error) {
+          console.error(`Failed to reach: ${site.url}`);
+        }
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## API Reference Summary
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/admin/sites` | POST | Required | Add a new site |
+| `/admin/sites` | DELETE | Required | Remove a site |
+| `/list` | GET | None | List all sites |
+
+For complete API documentation including navigation endpoints, visit your OpenRing instance at `/docs`.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="HTML Widget" icon="code" href="/integration/widget">
+    Add navigation widgets to member sites
+  </Card>
+  <Card title="JavaScript Integration" icon="js" href="/integration/javascript">
+    Build dynamic navigation with the API
+  </Card>
+</CardGroup>

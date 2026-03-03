@@ -1,0 +1,430 @@
+---
+title: Configuration Reference
+description: Complete reference for OpenRing environment variables, KV namespaces, secrets, and wrangler.jsonc settings
+---
+
+## Wrangler Configuration
+
+OpenRing uses `wrangler.jsonc` to configure the Cloudflare Worker. Here's the complete configuration:
+
+```jsonc wrangler.jsonc
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openring",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OPENRING_KV",
+      "id": "092b9431fd58421680ff10bd1cc13701",
+      "preview_id": "beb621e3e59647e08d55bfdfc21b2486"
+    }
+  ]
+}
+```
+
+### Configuration Fields
+
+<ParamField path="name" type="string" required>
+The name of your Cloudflare Worker. This determines your worker URL:
+
+```
+https://{name}.<your-subdomain>.workers.dev
+```
+
+Default: `openring`
+</ParamField>
+
+<ParamField path="main" type="string" required>
+Entry point for the Worker application.
+
+Default: `src/index.ts`
+</ParamField>
+
+<ParamField path="compatibility_date" type="string" required>
+The date used to determine which version of the Workers runtime to use.
+
+Current: `2026-01-21`
+
+<Info>
+This should be updated periodically to use the latest runtime features. See [Cloudflare's compatibility dates](https://developers.cloudflare.com/workers/configuration/compatibility-dates/) for more info.
+</Info>
+</ParamField>
+
+<ParamField path="compatibility_flags" type="array">
+Enables specific runtime features.
+
+- `nodejs_compat`: Enables Node.js compatibility mode for packages that depend on Node.js APIs
+
+<Note>
+OpenRing requires `nodejs_compat` to work with dependencies like Hono and Zod.
+</Note>
+</ParamField>
+
+<ParamField path="observability.enabled" type="boolean">
+Enables Cloudflare's observability features for monitoring and debugging.
+
+Default: `true`
+
+<Tip>
+This provides real-time logs, metrics, and traces in the Cloudflare Dashboard.
+</Tip>
+</ParamField>
+
+## KV Namespace Configuration
+
+<ParamField path="kv_namespaces" type="array" required>
+KV namespaces bound to the Worker for data storage.
+
+### OPENRING_KV Binding
+
+<ParamField path="kv_namespaces[].binding" type="string" required>
+The variable name used in your Worker code to access the KV namespace.
+
+Required value: `OPENRING_KV`
+
+```typescript src/index.ts
+const app = new OpenAPIHono<{ Bindings: Env }>();
+// Env.OPENRING_KV is accessed in route handlers
+```
+</ParamField>
+
+<ParamField path="kv_namespaces[].id" type="string" required>
+The production KV namespace ID from Cloudflare.
+
+Get this by running:
+```bash
+wrangler kv namespace create OPENRING_KV
+```
+
+Example: `092b9431fd58421680ff10bd1cc13701`
+</ParamField>
+
+<ParamField path="kv_namespaces[].preview_id" type="string">
+The preview KV namespace ID used during local development.
+
+Get this by running:
+```bash
+wrangler kv namespace create OPENRING_KV --preview
+```
+
+Example: `beb621e3e59647e08d55bfdfc21b2486`
+
+<Warning>
+Always use separate namespaces for production and preview to avoid corrupting production data during development.
+</Warning>
+</ParamField>
+
+</ParamField>
+
+## Environment Variables & Secrets
+
+### ADMIN_TOKEN (Secret)
+
+<ParamField path="ADMIN_TOKEN" type="secret" required>
+Bearer token for authenticating admin API requests.
+
+**Setting in production:**
+
+```bash
+wrangler secret put ADMIN_TOKEN
+```
+
+**Generating a secure token:**
+
+<CodeGroup>
+
+```bash OpenSSL
+openssl rand -hex 32
+```
+
+```bash Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+```bash Python
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+</CodeGroup>
+
+**Usage in API requests:**
+
+```bash
+curl -X POST https://openring.workers.dev/admin/sites \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "name": "Example"}'
+```
+
+<Warning>
+**Security Best Practices:**
+- Never commit this token to version control
+- Use a cryptographically secure random generator
+- Rotate the token periodically
+- Store it securely (e.g., in a password manager)
+</Warning>
+
+</ParamField>
+
+## Local Development Configuration
+
+For local development, create a `.dev.vars` file in the project root:
+
+```bash .dev.vars
+ADMIN_TOKEN=your-local-dev-token
+```
+
+<Note>
+The `.dev.vars` file is automatically loaded by Wrangler during local development (`wrangler dev`). It should be added to `.gitignore` to prevent accidental commits.
+</Note>
+
+**Example `.dev.vars`:**
+
+```bash .dev.vars
+# Local development secrets
+ADMIN_TOKEN=dev_token_for_testing_only_not_secure
+```
+
+<Tip>
+You can use a simpler token for local development, but never use the same token in production.
+</Tip>
+
+## Bindings Reference
+
+OpenRing uses these Cloudflare bindings:
+
+| Binding | Type | Required | Description |
+|---------|------|----------|-------------|
+| `OPENRING_KV` | KV Namespace | Yes | Stores webring sites and metadata |
+| `ADMIN_TOKEN` | Secret | Yes | Authenticates admin endpoints |
+
+### KV Data Structure
+
+The `OPENRING_KV` namespace stores data with these key patterns:
+
+<CodeGroup>
+
+```text Key Structure
+sites          → Array of all site objects
+site:{url}     → Individual site data
+metadata       → Webring metadata (creation date, etc.)
+```
+
+```json Example Site Object
+{
+  "url": "https://example.com",
+  "name": "Example Site",
+  "description": "A cool website in the webring",
+  "image": "https://example.com/banner.png",
+  "addedAt": "2026-03-03T12:00:00.000Z"
+}
+```
+
+</CodeGroup>
+
+## TypeScript Configuration
+
+OpenRing uses TypeScript with types generated from Wrangler configuration:
+
+```bash
+bun run cf-typegen
+```
+
+This generates `worker-configuration.d.ts` with type definitions for:
+
+- `Env.OPENRING_KV` - KV namespace binding
+- `Env.ADMIN_TOKEN` - Secret binding
+
+**Type usage in code:**
+
+```typescript src/index.ts
+import { OpenAPIHono } from "@hono/zod-openapi";
+
+const app = new OpenAPIHono<{ Bindings: Env }>();
+
+// TypeScript knows about Env.OPENRING_KV and Env.ADMIN_TOKEN
+```
+
+## Advanced Configuration
+
+### Custom Worker Name
+
+To deploy under a different name:
+
+```jsonc wrangler.jsonc
+{
+  "name": "my-webring"
+}
+```
+
+Your worker URL will be: `https://my-webring.<subdomain>.workers.dev`
+
+### Route Patterns (Custom Domains)
+
+To deploy to a custom domain, add routes:
+
+```jsonc wrangler.jsonc
+{
+  "routes": [
+    {
+      "pattern": "ring.example.com/*",
+      "zone_name": "example.com"
+    }
+  ]
+}
+```
+
+<Note>
+Your domain must be managed by Cloudflare to use route patterns.
+</Note>
+
+### Multiple Environments
+
+Create environment-specific configurations:
+
+```jsonc wrangler.jsonc
+{
+  "env": {
+    "staging": {
+      "name": "openring-staging",
+      "kv_namespaces": [
+        {
+          "binding": "OPENRING_KV",
+          "id": "staging-kv-namespace-id"
+        }
+      ]
+    },
+    "production": {
+      "name": "openring",
+      "kv_namespaces": [
+        {
+          "binding": "OPENRING_KV",
+          "id": "production-kv-namespace-id"
+        }
+      ]
+    }
+  }
+}
+```
+
+Deploy to a specific environment:
+
+```bash
+wrangler deploy --env staging
+wrangler deploy --env production
+```
+
+## Configuration Validation
+
+Wrangler validates your configuration against the schema:
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json"
+}
+```
+
+This provides:
+- Autocomplete in VS Code
+- Validation errors for invalid configurations
+- Documentation on hover
+
+<Tip>
+Use an editor with JSON schema support (like VS Code) for the best configuration experience.
+</Tip>
+
+## Verification
+
+Verify your configuration is correct:
+
+<Steps>
+
+<Step title="Check configuration">
+```bash
+wrangler deploy --dry-run
+```
+
+This validates your `wrangler.jsonc` without deploying.
+</Step>
+
+<Step title="List KV namespaces">
+```bash
+wrangler kv namespace list
+```
+
+Verify your namespaces exist and note their IDs.
+</Step>
+
+<Step title="Check secrets">
+```bash
+wrangler secret list
+```
+
+Verify `ADMIN_TOKEN` is set.
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="KV namespace not found">
+**Symptom:** `Error: No namespace found with ID 'xxxxx'`
+
+**Solution:**
+1. List your namespaces: `wrangler kv namespace list`
+2. Update the `id` in `wrangler.jsonc` with the correct value
+3. Ensure the namespace exists in your Cloudflare account
+</Accordion>
+
+<Accordion title="ADMIN_TOKEN not set">
+**Symptom:** Admin endpoints return 401 or `ADMIN_TOKEN is not set`
+
+**Solution:**
+1. Set the secret: `wrangler secret put ADMIN_TOKEN`
+2. Verify it's set: `wrangler secret list`
+3. For local dev, create `.dev.vars` with `ADMIN_TOKEN=your-token`
+</Accordion>
+
+<Accordion title="nodejs_compat errors">
+**Symptom:** `Module not found` or Node.js API errors
+
+**Solution:**
+Ensure `nodejs_compat` is in `compatibility_flags`:
+
+```jsonc
+"compatibility_flags": ["nodejs_compat"]
+```
+</Accordion>
+
+<Accordion title="Invalid configuration">
+**Symptom:** `Configuration is invalid`
+
+**Solution:**
+1. Validate JSON syntax (JSONC allows comments and trailing commas)
+2. Check the schema: use the `$schema` field for editor validation
+3. Run `wrangler deploy --dry-run` to see specific errors
+</Accordion>
+
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deploy with Wrangler" icon="rocket" href="/deployment/wrangler">
+    Deploy your configured worker
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/navigation/next">
+    Explore available endpoints
+  </Card>
+</CardGroup>

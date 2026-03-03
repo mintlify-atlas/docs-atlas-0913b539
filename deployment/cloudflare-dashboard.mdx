@@ -1,0 +1,275 @@
+---
+title: Deploy via Cloudflare Dashboard
+description: Deploy OpenRing using the Cloudflare Workers Dashboard without local setup
+---
+
+<Info>
+This method is ideal if you prefer a web-based deployment workflow or don't want to install local development tools.
+</Info>
+
+## Prerequisites
+
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier works)
+- A GitHub account
+- Your own fork of the OpenRing repository
+
+## Deployment Steps
+
+<Steps>
+
+<Step title="Fork the repository">
+
+1. Go to the [OpenRing repository](https://github.com/Thereallo1026/openring)
+2. Click the **Fork** button in the top-right corner
+3. Select your GitHub account as the destination
+
+<Tip>
+Forking creates a copy of the repository under your account, allowing you to make customizations if needed.
+</Tip>
+
+</Step>
+
+<Step title="Create a KV namespace">
+
+1. Log in to your [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Navigate to **Workers & Pages** > **KV**
+3. Click **Create a namespace**
+4. Name it `OPENRING_KV` (or any name you prefer)
+5. Click **Add**
+
+<Note>
+Keep this tab open - you'll need the namespace ID in a later step.
+</Note>
+
+</Step>
+
+<Step title="Create a new Worker">
+
+1. In the Cloudflare Dashboard, go to **Workers & Pages**
+2. Click **Create Application**
+3. Select **Workers** tab
+4. Choose **Create Worker**
+5. Give it a name (e.g., `openring`)
+6. Click **Deploy** (we'll update the code in the next step)
+
+</Step>
+
+<Step title="Connect to GitHub">
+
+There are two methods to deploy your code:
+
+### Method A: Direct Upload (Simpler)
+
+1. Clone your forked repository locally
+2. Install dependencies and build:
+   ```bash
+   bun install
+   ```
+3. Build the worker:
+   ```bash
+   wrangler deploy --dry-run --outdir=dist
+   ```
+4. In the Cloudflare Dashboard, go to your worker
+5. Click **Quick Edit**
+6. Upload the built files from the `dist` folder
+
+### Method B: Git Integration (Recommended)
+
+<Warning>
+Cloudflare Pages (with Git integration) is better suited for this method than standalone Workers.
+</Warning>
+
+1. Go to **Workers & Pages** > **Create Application**
+2. Select **Pages** tab
+3. Click **Connect to Git**
+4. Select **GitHub** and authorize Cloudflare
+5. Choose your forked `openring` repository
+6. Configure build settings:
+   - **Build command**: `bun install && wrangler deploy`
+   - **Build output directory**: (leave empty)
+   - **Root directory**: `/`
+
+</Step>
+
+<Step title="Configure KV binding">
+
+1. In your Worker or Pages settings, go to **Settings** > **Variables**
+2. Scroll to **KV Namespace Bindings**
+3. Click **Add binding**
+4. Configure:
+   - **Variable name**: `OPENRING_KV`
+   - **KV namespace**: Select the namespace you created in Step 2
+5. Click **Save**
+
+<Note>
+The binding name must be `OPENRING_KV` to match the configuration in `wrangler.jsonc`:
+
+```jsonc wrangler.jsonc
+"kv_namespaces": [
+  {
+    "binding": "OPENRING_KV",
+    "id": "092b9431fd58421680ff10bd1cc13701"
+  }
+]
+```
+</Note>
+
+</Step>
+
+<Step title="Set environment variables">
+
+1. In the same **Settings** > **Variables** section
+2. Scroll to **Environment Variables**
+3. Click **Add variable**
+4. Add the following:
+
+<ParamField path="ADMIN_TOKEN" type="secret" required>
+Generate a secure token for admin endpoints:
+
+```bash
+openssl rand -hex 32
+```
+
+Or use an online generator. Make sure to:
+- Click **Encrypt** to mark it as a secret
+- Save the token somewhere safe for later use
+</ParamField>
+
+5. Click **Save and Deploy**
+
+<Warning>
+Never commit `ADMIN_TOKEN` to your repository. Always use encrypted environment variables.
+</Warning>
+
+</Step>
+
+<Step title="Deploy and verify">
+
+1. If using Git integration, push any changes to your repository to trigger a deployment
+2. If using direct upload, your worker is already deployed
+3. Visit your worker URL:
+   ```
+   https://openring.<your-subdomain>.workers.dev/docs
+   ```
+
+You should see the Scalar API documentation.
+
+<Tip>
+The worker URL is shown in the Cloudflare Dashboard under your worker's **Overview** tab.
+</Tip>
+
+</Step>
+
+</Steps>
+
+## Configuration Summary
+
+Here's what you need to configure in the Cloudflare Dashboard:
+
+### KV Namespace Bindings
+
+| Variable Name | KV Namespace | Description |
+|---------------|--------------|-------------|
+| `OPENRING_KV` | Your created namespace | Stores webring sites data |
+
+### Environment Variables
+
+| Variable | Type | Required | Description |
+|----------|------|----------|-------------|
+| `ADMIN_TOKEN` | Secret (encrypted) | Yes | Bearer token for admin endpoints |
+
+## Updating Your Deployment
+
+### With Git Integration
+
+1. Make changes to your forked repository
+2. Commit and push to the main branch
+3. Cloudflare automatically rebuilds and deploys
+
+### With Direct Upload
+
+1. Make changes locally
+2. Build the worker again
+3. Upload new files via **Quick Edit** in the dashboard
+
+## Monitoring and Logs
+
+View your worker's performance and logs:
+
+1. Go to your worker in the Cloudflare Dashboard
+2. Click the **Logs** tab (real-time logs)
+3. Click the **Metrics** tab (analytics and performance)
+
+<Info>
+Cloudflare provides real-time logs and analytics for all Workers, including:
+- Request count
+- Error rate
+- CPU time
+- Request duration
+</Info>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="500 Internal Server Error">
+Check that:
+1. The `OPENRING_KV` binding is correctly configured
+2. The binding name matches exactly (case-sensitive)
+3. The KV namespace exists and is accessible
+</Accordion>
+
+<Accordion title="Admin endpoints return 401 Unauthorized">
+Ensure:
+1. `ADMIN_TOKEN` is set as an encrypted environment variable
+2. You're sending the correct token in the `Authorization` header:
+   ```
+   Authorization: Bearer YOUR_ADMIN_TOKEN
+   ```
+</Accordion>
+
+<Accordion title="Changes not reflecting">
+For Git integration:
+1. Check the **Deployments** tab for build status
+2. Look for build errors in the deployment logs
+
+For direct upload:
+1. Make sure you uploaded all necessary files
+2. Try clearing your browser cache
+</Accordion>
+
+<Accordion title="Cannot find module errors">
+Ensure all dependencies are installed:
+```bash
+bun install
+```
+
+And that the build process completes successfully before uploading.
+</Accordion>
+
+</AccordionGroup>
+
+## Custom Domains
+
+To use a custom domain with your worker:
+
+1. Go to your worker's **Settings** > **Triggers**
+2. Click **Add Custom Domain**
+3. Enter your domain (e.g., `ring.example.com`)
+4. Follow the DNS configuration instructions
+5. Click **Add Custom Domain**
+
+<Note>
+Your domain must be added to Cloudflare (or use Cloudflare nameservers) to use custom domains with Workers.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration Reference" icon="book" href="/deployment/configuration">
+    Learn about all configuration options
+  </Card>
+  <Card title="Add Your First Site" icon="plus" href="/api/admin/add-site">
+    Start building your webring
+  </Card>
+</CardGroup>

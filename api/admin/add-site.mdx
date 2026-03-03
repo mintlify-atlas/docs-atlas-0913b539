@@ -1,0 +1,188 @@
+---
+title: "Add Site"
+description: "Add a new site to the webring"
+---
+
+## POST /admin/sites
+
+Adds a new site to the webring. This endpoint requires admin authentication via Bearer token.
+
+<Warning>
+  This endpoint requires authentication. You must include a valid Bearer token in the Authorization header.
+</Warning>
+
+### Authentication
+
+This endpoint requires a Bearer token in the Authorization header:
+
+```
+Authorization: Bearer YOUR_ADMIN_TOKEN
+```
+
+### Request Body
+
+<ParamField body="url" type="string" required>
+  Full URL of the site to add
+  
+  Example: `https://example.com`
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Display name of the site
+  
+  Example: `Example Site`
+</ParamField>
+
+<ParamField body="image" type="string" optional>
+  Banner or avatar image URL (88x31)
+  
+  Example: `https://example.com/banner.png`
+</ParamField>
+
+<ParamField body="description" type="string" optional>
+  Short description of the site
+  
+  Example: `A cool website`
+</ParamField>
+
+### Response
+
+<Expandable title="201 - Site successfully added">
+  Returns the created site object.
+  
+  <ResponseField name="url" type="string" required>
+    Full URL of the site
+  </ResponseField>
+  
+  <ResponseField name="name" type="string" required>
+    Display name of the site
+  </ResponseField>
+  
+  <ResponseField name="image" type="string" optional>
+    Banner or avatar image URL
+  </ResponseField>
+  
+  <ResponseField name="description" type="string" optional>
+    Short description of the site
+  </ResponseField>
+  
+  ```json
+  {
+    "url": "https://example.com",
+    "name": "Example Site",
+    "image": "https://example.com/banner.png",
+    "description": "A cool website"
+  }
+  ```
+</Expandable>
+
+<Expandable title="400 - Invalid request body">
+  The request body is invalid or missing required fields.
+  
+  <ResponseField name="error" type="string">
+    Error message describing what went wrong
+  </ResponseField>
+  
+  ```json
+  {
+    "error": "Invalid request body"
+  }
+  ```
+</Expandable>
+
+<Expandable title="401 - Unauthorized">
+  Invalid or missing admin token in the Authorization header.
+  
+  <ResponseField name="error" type="string">
+    Error message describing the authentication failure
+  </ResponseField>
+  
+  ```json
+  {
+    "error": "Unauthorized. Invalid admin token"
+  }
+  ```
+</Expandable>
+
+<Expandable title="409 - Site already exists">
+  A site with the same URL already exists in the webring.
+  
+  <ResponseField name="error" type="string">
+    Error message indicating the site already exists
+  </ResponseField>
+  
+  ```json
+  {
+    "error": "Site already exists in the webring"
+  }
+  ```
+</Expandable>
+
+<Expandable title="500 - Failed to add site">
+  An internal server error occurred while adding the site.
+  
+  <ResponseField name="error" type="string">
+    Error message describing the failure
+  </ResponseField>
+  
+  ```json
+  {
+    "error": "Failed to add site"
+  }
+  ```
+</Expandable>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.openring.dev/admin/sites \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "name": "Example Site",
+    "image": "https://example.com/banner.png",
+    "description": "A cool website"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.openring.dev/admin/sites', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_ADMIN_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://example.com',
+    name: 'Example Site',
+    image: 'https://example.com/banner.png',
+    description: 'A cool website'
+  })
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+url = 'https://api.openring.dev/admin/sites'
+headers = {
+    'Authorization': 'Bearer YOUR_ADMIN_TOKEN',
+    'Content-Type': 'application/json'
+}
+data = {
+    'url': 'https://example.com',
+    'name': 'Example Site',
+    'image': 'https://example.com/banner.png',
+    'description': 'A cool website'
+}
+
+response = requests.post(url, headers=headers, json=data)
+result = response.json()
+```
+
+</CodeGroup>

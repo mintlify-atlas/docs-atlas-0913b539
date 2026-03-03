@@ -1,0 +1,126 @@
+---
+title: Introduction
+description: An open-source webring API built with Cloudflare Workers that brings retro web navigation to the modern era
+---
+
+## What is OpenRing?
+
+OpenRing is a serverless webring API that makes it easy to create and manage webrings - a retro web navigation system that connects websites in a circular chain. Built on Cloudflare Workers, it's fast, scalable, and requires zero maintenance.
+
+## Why OpenRing?
+
+Traditional webrings require every member site to implement complex navigation logic and maintain their own site lists. OpenRing centralizes everything - members just add simple anchor tags:
+
+```html
+<a href="https://ring.example/next?url=mysite.com&redirect=true">Next ></a>
+```
+
+No JavaScript required. No logic to maintain. Deploy once, invite members, and you're done.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Serverless Architecture" icon="cloud">
+    Built on Cloudflare Workers for global edge deployment with zero server maintenance and automatic scaling
+  </Card>
+  
+  <Card title="Simple Integration" icon="code">
+    Members add pure HTML anchor tags - no JavaScript bundles, no complex setup, just links that work
+  </Card>
+  
+  <Card title="Flexible Navigation" icon="arrows-rotate">
+    Navigate to next/previous sites, jump to random members, or view the complete webring directory
+  </Card>
+  
+  <Card title="Admin API" icon="shield-halved">
+    RESTful API with bearer token authentication for managing webring membership
+  </Card>
+  
+  <Card title="Interactive Documentation" icon="book">
+    Built-in OpenAPI docs powered by Scalar for exploring and testing the API
+  </Card>
+  
+  <Card title="KV Storage" icon="database">
+    Uses Cloudflare KV for distributed, low-latency data storage across the edge network
+  </Card>
+</CardGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Deploy the API">
+    Deploy OpenRing to Cloudflare Workers using Wrangler. The API runs on the edge, close to your users worldwide.
+  </Step>
+  
+  <Step title="Add Sites">
+    Use the admin API to add websites to your webring. Each site includes a URL, name, and optional description and banner image.
+  </Step>
+  
+  <Step title="Integrate Navigation">
+    Members add simple HTML links to their sites that point to your OpenRing API endpoints for navigation.
+  </Step>
+  
+  <Step title="Navigate the Ring">
+    Visitors click navigation links to discover other sites in the webring, creating a circular browsing experience.
+  </Step>
+</Steps>
+
+## Architecture
+
+OpenRing is built with modern web technologies:
+
+- **[Hono](https://hono.dev/)** - Lightweight web framework optimized for edge runtimes
+- **[Zod](https://zod.dev/)** - TypeScript-first schema validation for request/response handling
+- **[Cloudflare Workers](https://workers.cloudflare.com/)** - Serverless execution environment at the edge
+- **[Cloudflare KV](https://developers.cloudflare.com/kv/)** - Distributed key-value storage for site data
+- **[Scalar](https://scalar.com/)** - Beautiful OpenAPI documentation interface
+
+<Note>
+  OpenRing stores all webring data in Cloudflare KV as a single JSON array. This simple data model makes it easy to understand and maintain.
+</Note>
+
+## API Overview
+
+OpenRing provides two types of endpoints:
+
+### Public Navigation Endpoints
+
+These endpoints are used by webring members and visitors to navigate between sites:
+
+- `GET /next?url={url}` - Get the next site in the ring
+- `GET /prev?url={url}` - Get the previous site in the ring  
+- `GET /random` - Get a random site from the ring
+- `GET /list` - List all sites in the ring
+
+All navigation endpoints support a `redirect=true` parameter to return HTTP 302 redirects instead of JSON responses.
+
+### Protected Admin Endpoints
+
+These endpoints require bearer token authentication for managing the webring:
+
+- `POST /admin/sites` - Add a site to the webring
+- `DELETE /admin/sites` - Remove a site from the webring
+
+<Info>
+  The admin token is stored as a Cloudflare Worker secret and never exposed in your codebase or logs.
+</Info>
+
+## Use Cases
+
+- **Community Building**: Connect blogs, personal sites, or projects around a shared theme or interest
+- **Indie Web Movement**: Support decentralized web discovery outside of social media platforms
+- **Creative Networks**: Link artists, writers, or makers to help audiences discover new creators
+- **Educational Resources**: Create navigation between related learning materials or course sites
+- **Retro Web Revival**: Bring back the nostalgic browsing experience of the early internet
+
+## What's Next?
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Deploy OpenRing to Cloudflare Workers in under 5 minutes
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/navigation/next">
+    Explore all available endpoints and parameters
+  </Card>
+</CardGroup>

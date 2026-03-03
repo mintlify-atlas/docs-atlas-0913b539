@@ -1,0 +1,288 @@
+---
+title: Deploy with Wrangler CLI
+description: Deploy OpenRing to Cloudflare Workers using Wrangler CLI (recommended method)
+---
+
+<Info>
+Wrangler is the official CLI tool for Cloudflare Workers. This is the recommended deployment method for OpenRing.
+</Info>
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- [Node.js](https://nodejs.org/) 18+ or [Bun](https://bun.com/) installed
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed
+
+## Deployment Steps
+
+<Steps>
+
+<Step title="Clone the repository">
+
+Clone the OpenRing repository to your local machine:
+
+<CodeGroup>
+
+```bash SSH
+git clone https://github.com/Thereallo1026/openring.git
+cd openring
+```
+
+```bash HTTPS
+git clone https://github.com/Thereallo1026/openring.git
+cd openring
+```
+
+</CodeGroup>
+
+</Step>
+
+<Step title="Install dependencies">
+
+Install the required dependencies using your preferred package manager:
+
+<CodeGroup>
+
+```bash Bun
+bun install
+```
+
+```bash npm
+npm install
+```
+
+```bash pnpm
+pnpm install
+```
+
+</CodeGroup>
+
+</Step>
+
+<Step title="Login to Cloudflare">
+
+Authenticate Wrangler with your Cloudflare account:
+
+```bash
+wrangler login
+```
+
+This will open a browser window to authorize Wrangler with your Cloudflare account.
+
+</Step>
+
+<Step title="Create a KV namespace">
+
+Create a production KV namespace for storing webring data:
+
+```bash
+wrangler kv namespace create OPENRING_KV
+```
+
+**Expected output:**
+
+```plaintext
+{ binding = "OPENRING_KV", id = "092b9431fd58421680ff10bd1cc13701" }
+```
+
+<Note>
+Copy the `id` value from the output. You'll need it in the next step.
+</Note>
+
+</Step>
+
+<Step title="Create a preview KV namespace">
+
+Create a preview KV namespace for local development:
+
+```bash
+wrangler kv namespace create OPENRING_KV --preview
+```
+
+**Expected output:**
+
+```plaintext
+{ binding = "OPENRING_KV", preview_id = "beb621e3e59647e08d55bfdfc21b2486" }
+```
+
+Copy the `preview_id` value from this output.
+
+</Step>
+
+<Step title="Update wrangler.jsonc">
+
+Update the KV namespace IDs in `wrangler.jsonc` with your own values:
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openring",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OPENRING_KV",
+      "id": "YOUR_KV_NAMESPACE_ID",
+      "preview_id": "YOUR_PREVIEW_KV_NAMESPACE_ID"
+    }
+  ]
+}
+```
+
+Replace:
+- `YOUR_KV_NAMESPACE_ID` with the `id` from step 4
+- `YOUR_PREVIEW_KV_NAMESPACE_ID` with the `preview_id` from step 5
+
+</Step>
+
+<Step title="Set your admin token">
+
+Generate a secure admin token for protecting admin endpoints:
+
+```bash
+openssl rand -hex 32
+```
+
+This generates a random 64-character hexadecimal token. Copy the output.
+
+Then set it as a secret in Cloudflare:
+
+```bash
+wrangler secret put ADMIN_TOKEN
+```
+
+Paste your generated token when prompted.
+
+<Warning>
+Keep this token secure! Anyone with this token can add or remove sites from your webring.
+</Warning>
+
+</Step>
+
+<Step title="Deploy to Cloudflare Workers">
+
+Deploy your OpenRing instance:
+
+<CodeGroup>
+
+```bash Bun
+bun run deploy
+```
+
+```bash npm
+npm run deploy
+```
+
+```bash Direct
+wrangler deploy
+```
+
+</CodeGroup>
+
+**Expected output:**
+
+```plaintext
+⛅️ wrangler 4.59.3
+-------------------
+Your worker has access to the following bindings:
+- KV Namespaces:
+  - OPENRING_KV: 092b9431fd58421680ff10bd1cc13701
+Total Upload: XX.XX KiB / gzip: XX.XX KiB
+Uploaded openring (X.XX sec)
+Published openring (X.XX sec)
+  https://openring.<your-subdomain>.workers.dev
+Current Deployment ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+<Tip>
+Your webring API is now live! The URL will be in the format `https://openring.<your-subdomain>.workers.dev`
+</Tip>
+
+</Step>
+
+</Steps>
+
+## Verify Deployment
+
+Test your deployment by visiting the API documentation:
+
+```bash
+https://openring.<your-subdomain>.workers.dev/docs
+```
+
+You should see the interactive Scalar API documentation.
+
+## Available Scripts
+
+The `package.json` includes these npm scripts for deployment and development:
+
+<ParamField path="deploy" type="script">
+Deploys the worker to Cloudflare
+
+```bash
+bun run deploy
+```
+</ParamField>
+
+<ParamField path="dev" type="script">
+Starts local development server with hot reload
+
+```bash
+bun dev
+```
+</ParamField>
+
+<ParamField path="start" type="script">
+Alias for `dev` command
+
+```bash
+bun start
+```
+</ParamField>
+
+<ParamField path="cf-typegen" type="script">
+Generates TypeScript types from your Wrangler configuration
+
+```bash
+bun run cf-typegen
+```
+</ParamField>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Error: No KV namespace found">
+Make sure you've created both production and preview KV namespaces and updated `wrangler.jsonc` with the correct IDs.
+</Accordion>
+
+<Accordion title="Error: Unauthorized">
+Ensure you've run `wrangler login` and authorized your Cloudflare account.
+</Accordion>
+
+<Accordion title="Error: Missing ADMIN_TOKEN">
+The `ADMIN_TOKEN` secret must be set using `wrangler secret put ADMIN_TOKEN` before deployment.
+</Accordion>
+
+<Accordion title="Worker URL not working">
+Wait a few seconds after deployment for the worker to propagate globally. If the issue persists, check the Cloudflare Workers dashboard for error logs.
+</Accordion>
+
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Learn about environment variables and secrets
+  </Card>
+  <Card title="Add Sites" icon="plus" href="/api/admin/add-site">
+    Start adding sites to your webring
+  </Card>
+</CardGroup>

@@ -1,0 +1,271 @@
+---
+title: Authentication
+description: How Bearer token authentication works for admin endpoints in OpenRing
+---
+
+OpenRing uses Bearer token authentication to protect admin endpoints that modify the webring (adding/removing sites).
+
+## How It Works
+
+All routes under `/admin/*` require a valid Bearer token in the `Authorization` header. The authentication is handled by middleware that runs before every admin endpoint.
+
+## Authentication Middleware
+
+Here's the authentication middleware from `src/routes/admin.ts:10-34`:
+
+```typescript src/routes/admin.ts
+admin.use("*", async (c, next) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json(
+      {
+        error: "Unauthorized. Missing or invalid Authorization header",
+      },
+      401
+    );
+  }
+
+  const token = authHeader.substring(7);
+  const adminToken = c.env.ADMIN_TOKEN;
+
+  if (!adminToken || token !== adminToken) {
+    return c.json(
+      {
+        error: "Unauthorized. Invalid admin token",
+      },
+      401
+    );
+  }
+
+  await next();
+});
+```
+
+## Authentication Flow
+
+<Steps>
+  <Step title="Check Authorization header">
+    The middleware first checks if the request includes an `Authorization` header that starts with `Bearer `.
+
+    ```typescript
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return c.json({ error: "Unauthorized. Missing or invalid Authorization header" }, 401);
+    }
+    ```
+
+    <Info>
+      The optional chaining operator (`?.`) ensures the code doesn't throw an error if the header is missing.
+    </Info>
+  </Step>
+
+  <Step title="Extract the token">
+    The token is extracted by removing the `Bearer ` prefix (7 characters):
+
+    ```typescript
+    const token = authHeader.substring(7);
+    ```
+
+    For example:
+    - Input: `"Bearer abc123xyz"`
+    - Output: `"abc123xyz"`
+  </Step>
+
+  <Step title="Validate against ADMIN_TOKEN">
+    The extracted token is compared against the `ADMIN_TOKEN` environment variable:
+
+    ```typescript
+    const adminToken = c.env.ADMIN_TOKEN;
+
+    if (!adminToken || token !== adminToken) {
+      return c.json({ error: "Unauthorized. Invalid admin token" }, 401);
+    }
+    ```
+
+    <Warning>
+      The comparison uses strict equality (`!==`), so the token must match exactly.
+    </Warning>
+  </Step>
+
+  <Step title="Allow request to proceed">
+    If validation succeeds, `await next()` allows the request to continue to the actual endpoint handler.
+
+    ```typescript
+    await next();
+    ```
+  </Step>
+</Steps>
+
+## Setting Up Your Admin Token
+
+### Local Development
+
+Create a `.dev.vars` file in your project root:
+
+```bash .dev.vars
+ADMIN_TOKEN=your-local-dev-token
+```
+
+<Tip>
+  Generate a secure token using:
+  ```bash
+  openssl rand -hex 32
+  ```
+</Tip>
+
+### Production
+
+Set the token as a secret using Wrangler:
+
+```bash
+wrangler secret put ADMIN_TOKEN
+```
+
+When prompted, paste your token. This encrypts and stores it securely in Cloudflare.
+
+<Warning>
+  Never commit your admin token to version control or expose it in client-side code!
+</Warning>
+
+## Making Authenticated Requests
+
+Include your token in the `Authorization` header with the `Bearer` scheme:
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://your-worker.workers.dev/admin/sites \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "name": "Example Site"
+  }'
+```
+
+```javascript Fetch API
+fetch('https://your-worker.workers.dev/admin/sites', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_ADMIN_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://example.com',
+    name: 'Example Site'
+  })
+})
+```
+
+```typescript TypeScript
+const response = await fetch('https://your-worker.workers.dev/admin/sites', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.ADMIN_TOKEN}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://example.com',
+    name: 'Example Site'
+  })
+});
+```
+</CodeGroup>
+
+## Error Responses
+
+### Missing Authorization Header
+
+Request without an `Authorization` header:
+
+```json Response (401)
+{
+  "error": "Unauthorized. Missing or invalid Authorization header"
+}
+```
+
+### Invalid Token
+
+Request with an incorrect token:
+
+```json Response (401)
+{
+  "error": "Unauthorized. Invalid admin token"
+}
+```
+
+### Successful Authentication
+
+With a valid token, you'll receive the endpoint's normal response:
+
+```json Response (201)
+{
+  "url": "https://example.com",
+  "name": "Example Site",
+  "description": "A cool website",
+  "image": "https://example.com/banner.png"
+}
+```
+
+## Protected Endpoints
+
+All endpoints under `/admin/*` require authentication:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/sites` | POST | Add a site to the webring |
+| `/admin/sites` | DELETE | Remove a site from the webring |
+
+<Note>
+  Public navigation endpoints (`/next`, `/prev`, `/random`, `/list`) do **not** require authentication.
+</Note>
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Use a strong token">
+    Generate cryptographically secure tokens with at least 32 bytes of entropy:
+
+    ```bash
+    openssl rand -hex 32
+    ```
+  </Step>
+
+  <Step title="Rotate tokens regularly">
+    Update your admin token periodically:
+
+    ```bash
+    wrangler secret put ADMIN_TOKEN
+    ```
+  </Step>
+
+  <Step title="Use HTTPS in production">
+    Always use HTTPS to prevent token interception. Cloudflare Workers automatically use HTTPS.
+  </Step>
+
+  <Step title="Limit token exposure">
+    - Store tokens in environment variables, never in code
+    - Don't log tokens in application logs
+    - Don't share tokens in URLs or query parameters
+  </Step>
+</Steps>
+
+## OpenAPI Security Scheme
+
+The Bearer authentication is documented in the OpenAPI specification (`src/index.ts:7-12`):
+
+```typescript src/index.ts
+app.openAPIRegistry.registerComponent("securitySchemes", "Bearer", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "Token",
+  description: "Bearer token for admin endpoints.",
+});
+```
+
+This allows API documentation tools (like Scalar) to display authentication requirements and let you test authenticated endpoints interactively.
+
+## Next Steps
+
+- Set up [local development](/guides/local-development) with `.dev.vars`
+- Learn about [Cloudflare KV storage](/guides/cloudflare-kv) used by admin endpoints
+- Explore the [API Reference](/api/admin/add-site) for admin operations

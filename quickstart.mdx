@@ -1,80 +1,636 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get your OpenRing webring API running on Cloudflare Workers in minutes"
 ---
 
-## Get started in three steps
+Get your webring API deployed and running on Cloudflare Workers in less than 10 minutes. This guide takes you from zero to a working webring with your first site added.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- **Node.js 18+** or [Bun](https://bun.sh) installed
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier works)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed
 
-### Step 2: Deploy your changes
+<Note>
+This guide uses Bun for faster installation, but npm/yarn/pnpm work too. Just replace `bun` commands with your preferred package manager.
+</Note>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+## Installation
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Steps>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+<Step title="Clone the repository">
 
-### Step 3: Go live
+Get the OpenRing source code from GitHub:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+<CodeGroup>
 
-## Next steps
+```bash npm
+git clone https://github.com/Thereallo1026/openring.git
+cd openring
+```
 
-Now that you have your docs running, explore these key features:
+```bash bun
+git clone https://github.com/Thereallo1026/openring.git
+cd openring
+```
+
+</CodeGroup>
+
+</Step>
+
+<Step title="Install dependencies">
+
+Install the required packages:
+
+<CodeGroup>
+
+```bash npm
+npm install
+```
+
+```bash bun
+bun install
+```
+
+```bash yarn
+yarn install
+```
+
+```bash pnpm
+pnpm install
+```
+
+</CodeGroup>
+
+<Info>
+OpenRing uses Hono for routing, Zod for validation, and Scalar for API documentation.
+</Info>
+
+</Step>
+
+<Step title="Login to Cloudflare">
+
+Authenticate Wrangler with your Cloudflare account:
+
+```bash
+wrangler login
+```
+
+This will open your browser to authorize Wrangler. Once complete, you're ready to deploy.
+
+</Step>
+
+</Steps>
+
+## Configure KV Storage
+
+OpenRing stores webring data in Cloudflare KV. You'll need to create two namespaces - one for production and one for local development.
+
+<Steps>
+
+<Step title="Create production KV namespace">
+
+```bash
+wrangler kv namespace create OPENRING_KV
+```
+
+This outputs your namespace binding:
+
+```text
+{ binding = "OPENRING_KV", id = "092b9431fd58421680ff10bd1cc13701" }
+```
+
+<Warning>
+Copy the `id` value - you'll need it in the next step.
+</Warning>
+
+</Step>
+
+<Step title="Create preview KV namespace">
+
+For local development, create a preview namespace:
+
+```bash
+wrangler kv namespace create OPENRING_KV --preview
+```
+
+Output:
+
+```text
+{ binding = "OPENRING_KV", preview_id = "beb621e3e59647e08d55bfdfc21b2486" }
+```
+
+Save this `preview_id` as well.
+
+</Step>
+
+<Step title="Update wrangler.jsonc">
+
+Open `wrangler.jsonc` and replace the namespace IDs with your own:
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openring",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OPENRING_KV",
+      "id": "YOUR_KV_NAMESPACE_ID",
+      "preview_id": "YOUR_PREVIEW_KV_NAMESPACE_ID"
+    }
+  ]
+}
+```
+
+Replace `YOUR_KV_NAMESPACE_ID` and `YOUR_PREVIEW_KV_NAMESPACE_ID` with the IDs from steps 1 and 2.
+
+</Step>
+
+</Steps>
+
+## Set Admin Token
+
+The admin API requires authentication. Create a secure token to protect your webring management endpoints.
+
+<Steps>
+
+<Step title="Generate a secure token">
+
+Use OpenSSL to generate a random token:
+
+```bash
+openssl rand -hex 32
+```
+
+This outputs a 64-character hexadecimal string like:
+
+```text
+a7f3c2e1b9d8f4a6c3e5b2d9f1a8c4e7b3d6f2a9c5e8b1d4f7a3c6e9b2d5f8a1
+```
+
+<Tip>
+Save this token somewhere secure - you'll need it to manage your webring. Any password manager or secure random generator works too.
+</Tip>
+
+</Step>
+
+<Step title="Add token to Cloudflare">
+
+Store the token as a Wrangler secret:
+
+```bash
+wrangler secret put ADMIN_TOKEN
+```
+
+When prompted, paste your generated token and press Enter.
+
+<Info>
+Secrets are encrypted and never exposed in your code or logs. They're available to your Worker at runtime via `env.ADMIN_TOKEN`.
+</Info>
+
+</Step>
+
+<Step title="Configure local development">
+
+Create a `.dev.vars` file in your project root for local testing:
+
+```bash .dev.vars
+ADMIN_TOKEN=a7f3c2e1b9d8f4a6c3e5b2d9f1a8c4e7b3d6f2a9c5e8b1d4f7a3c6e9b2d5f8a1
+```
+
+<Warning>
+Never commit `.dev.vars` to version control. Add it to `.gitignore` to keep your secrets safe.
+</Warning>
+
+</Step>
+
+</Steps>
+
+## Deploy to Cloudflare
+
+Deploy your webring API to Cloudflare Workers:
+
+<CodeGroup>
+
+```bash npm
+npm run deploy
+```
+
+```bash bun
+bun run deploy
+```
+
+</CodeGroup>
+
+After a few seconds, you'll see:
+
+```text
+Uploaded openring (1.23 sec)
+Published openring (0.45 sec)
+  https://openring.your-subdomain.workers.dev
+Current Deployment ID: abc123def456
+```
+
+<Info>
+Your webring is now live! Visit `https://openring.your-subdomain.workers.dev` to see the interactive API documentation.
+</Info>
+
+## Add Your First Site
+
+Now let's add a site to your webring using the admin API.
+
+<Steps>
+
+<Step title="Add a site via curl">
+
+Use the admin API to add your first member site:
+
+```bash
+curl -X POST https://openring.your-subdomain.workers.dev/admin/sites \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "name": "Example Site",
+    "description": "A cool website in our webring",
+    "image": "https://example.com/badge.png"
+  }'
+```
+
+<Note>
+Replace `YOUR_ADMIN_TOKEN` with the token you created earlier. The `image` field is optional and typically uses an 88x31 pixel badge.
+</Note>
+
+Successful response:
+
+```json
+{
+  "success": true,
+  "message": "Site added successfully"
+}
+```
+
+</Step>
+
+<Step title="Add more sites">
+
+Add a few more sites to make your webring functional:
+
+```bash
+curl -X POST https://openring.your-subdomain.workers.dev/admin/sites \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://anothersite.com",
+    "name": "Another Site",
+    "description": "Second member of the ring"
+  }'
+```
+
+<Tip>
+A webring needs at least 2 sites for navigation to work. The more sites you add, the better the experience!
+</Tip>
+
+</Step>
+
+<Step title="Verify sites were added">
+
+List all sites in your webring:
+
+```bash
+curl https://openring.your-subdomain.workers.dev/list
+```
+
+Response:
+
+```json
+{
+  "sites": [
+    {
+      "url": "https://example.com",
+      "name": "Example Site",
+      "description": "A cool website in our webring",
+      "image": "https://example.com/badge.png"
+    },
+    {
+      "url": "https://anothersite.com",
+      "name": "Another Site",
+      "description": "Second member of the ring"
+    }
+  ]
+}
+```
+
+</Step>
+
+</Steps>
+
+## Test Navigation
+
+Let's verify that navigation between sites works correctly.
+
+<Steps>
+
+<Step title="Get the next site">
+
+```bash
+curl "https://openring.your-subdomain.workers.dev/next?url=https://example.com"
+```
+
+Response:
+
+```json
+{
+  "site": {
+    "url": "https://anothersite.com",
+    "name": "Another Site",
+    "description": "Second member of the ring"
+  },
+  "position": 2,
+  "total": 2
+}
+```
+
+</Step>
+
+<Step title="Get the previous site">
+
+```bash
+curl "https://openring.your-subdomain.workers.dev/prev?url=https://anothersite.com"
+```
+
+The API returns to the first site, completing the ring:
+
+```json
+{
+  "site": {
+    "url": "https://example.com",
+    "name": "Example Site",
+    "description": "A cool website in our webring",
+    "image": "https://example.com/badge.png"
+  },
+  "position": 1,
+  "total": 2
+}
+```
+
+</Step>
+
+<Step title="Try random navigation">
+
+Get a random site from the ring:
+
+```bash
+curl "https://openring.your-subdomain.workers.dev/random"
+```
+
+<Info>
+Use the `exclude` parameter to prevent getting the current site: `/random?exclude=https://example.com`
+</Info>
+
+</Step>
+
+<Step title="Test redirects">
+
+Add `redirect=true` to navigate directly in your browser:
+
+```bash
+curl -L "https://openring.your-subdomain.workers.dev/next?url=https://example.com&redirect=true"
+```
+
+This returns a 302 redirect, sending you to the next site immediately.
+
+</Step>
+
+</Steps>
+
+## Integration Examples
+
+Add webring navigation to member sites. Here are common integration patterns:
 
 <CardGroup cols={2}>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
+<Card title="HTML Only" icon="code">
+  Simple anchor tags - no JavaScript required
 </Card>
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
+<Card title="JavaScript Enhanced" icon="js">
+  Dynamic navigation with automatic URL detection
 </Card>
 
 </CardGroup>
 
+### Basic HTML Integration
+
+Add this snippet to any member site:
+
+```html
+<div id="webring">
+  <a href="https://openring.your-subdomain.workers.dev/prev?url=https://mysite.com&redirect=true">
+    ← Previous
+  </a>
+  <span>|</span>
+  <a href="https://openring.your-subdomain.workers.dev/list">
+    Ring Members
+  </a>
+  <span>|</span>
+  <a href="https://openring.your-subdomain.workers.dev/next?url=https://mysite.com&redirect=true">
+    Next →
+  </a>
+</div>
+
+<style>
+  #webring {
+    text-align: center;
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  #webring a {
+    color: #0066cc;
+    text-decoration: none;
+    padding: 0 0.5rem;
+  }
+  
+  #webring a:hover {
+    text-decoration: underline;
+  }
+</style>
+```
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+Replace `https://mysite.com` with the actual site URL registered in your webring.
 </Note>
+
+### JavaScript Enhanced Integration
+
+For dynamic URL detection:
+
+```html
+<div id="webring">
+  <a id="webring-prev" href="#">← Previous</a>
+  <span>|</span>
+  <a id="webring-list" href="#">Ring Members</a>
+  <span>|</span>
+  <a id="webring-next" href="#">Next →</a>
+</div>
+
+<script>
+  (function() {
+    const baseUrl = 'https://openring.your-subdomain.workers.dev';
+    const currentSite = encodeURIComponent(window.location.origin);
+    
+    document.getElementById('webring-prev').href = 
+      `${baseUrl}/prev?url=${currentSite}&redirect=true`;
+    
+    document.getElementById('webring-list').href = 
+      `${baseUrl}/list`;
+    
+    document.getElementById('webring-next').href = 
+      `${baseUrl}/next?url=${currentSite}&redirect=true`;
+  })();
+</script>
+```
+
+<Tip>
+This automatically detects the current site's URL, so you can use the same code across all member sites.
+</Tip>
+
+### Widget with Badge
+
+Include an 88x31 badge for retro webring aesthetics:
+
+```html
+<div class="webring-widget">
+  <img src="https://example.com/webring-badge.png" alt="Webring Badge" width="88" height="31">
+  <div class="webring-nav">
+    <a href="https://openring.your-subdomain.workers.dev/prev?url=https://mysite.com&redirect=true">
+      Prev
+    </a>
+    <a href="https://openring.your-subdomain.workers.dev/random?exclude=https://mysite.com&redirect=true">
+      Random
+    </a>
+    <a href="https://openring.your-subdomain.workers.dev/next?url=https://mysite.com&redirect=true">
+      Next
+    </a>
+  </div>
+</div>
+
+<style>
+  .webring-widget {
+    display: inline-block;
+    text-align: center;
+  }
+  
+  .webring-nav {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+  }
+</style>
+```
+
+## Local Development
+
+Test changes locally before deploying:
+
+<Steps>
+
+<Step title="Start the dev server">
+
+<CodeGroup>
+
+```bash npm
+npm run dev
+```
+
+```bash bun
+bun dev
+```
+
+</CodeGroup>
+
+The server starts at `http://localhost:8787`
+
+</Step>
+
+<Step title="View API documentation">
+
+Open `http://localhost:8787/docs` in your browser to access the interactive Scalar API documentation.
+
+<Info>
+The local server uses your preview KV namespace, so you can test without affecting production data.
+</Info>
+
+</Step>
+
+<Step title="Test API endpoints">
+
+Use the interactive docs or curl to test:
+
+```bash
+curl http://localhost:8787/list
+```
+
+</Step>
+
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+
+<Card title="API Reference" icon="book" href="/api/navigation/next">
+  Explore all available endpoints and parameters
+</Card>
+
+<Card title="Configuration" icon="gear" href="/deployment/configuration">
+  Customize your webring deployment
+</Card>
+
+<Card title="Widget Integration" icon="palette" href="/integration/widget">
+  Pre-built widgets and styling options
+</Card>
+
+<Card title="Managing Sites" icon="shield" href="/integration/managing-sites">
+  Manage sites and moderate your webring
+</Card>
+
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Error: KV namespace not found">
+  Make sure you've created both production and preview KV namespaces, and updated the IDs in `wrangler.jsonc`.
+</Accordion>
+
+<Accordion title="Error: Unauthorized (401)">
+  Check that your `ADMIN_TOKEN` is set correctly with `wrangler secret put ADMIN_TOKEN`. For local dev, verify your `.dev.vars` file exists.
+</Accordion>
+
+<Accordion title="Site navigation returns 404">
+  Ensure the URL you're querying exactly matches the URL stored in KV. URLs are case-sensitive and must include the protocol (`https://`).
+</Accordion>
+
+<Accordion title="Changes not reflecting after deploy">
+  Cloudflare Workers may cache for a few seconds. Try a hard refresh or wait ~30 seconds. Use `wrangler tail` to see live logs.
+</Accordion>
+
+</AccordionGroup>
+
+<Info>
+Need more help? Check out the [Cloudflare Workers documentation](https://developers.cloudflare.com/workers/) or open an issue on [GitHub](https://github.com/Thereallo1026/openring).
+</Info>

@@ -1,0 +1,206 @@
+---
+title: Local Development
+description: Set up your local development environment with Wrangler and .dev.vars
+---
+
+This guide will help you set up OpenRing for local development using Wrangler's development server.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- [Node.js](https://nodejs.org/) 18+ or [Bun](https://bun.com/)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed
+- A Cloudflare account (for KV namespaces)
+
+## Setting Up Your Environment
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Thereallo1026/openring.git
+    cd openring
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    <CodeGroup>
+    ```bash bun
+    bun install
+    ```
+
+    ```bash npm
+    npm install
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Create KV namespaces">
+    Create a preview KV namespace for local development:
+
+    ```bash
+    wrangler kv namespace create OPENRING_KV --preview
+    ```
+
+    This will output:
+
+    ```
+    { binding = "OPENRING_KV", preview_id = "beb621e3e59647e08d55bfdfc21b2486" }
+    ```
+
+    <Note>
+      Copy the `preview_id` value and update it in your `wrangler.jsonc` file under the `kv_namespaces` array.
+    </Note>
+  </Step>
+
+  <Step title="Configure local secrets">
+    Create a `.dev.vars` file in the project root for local environment variables:
+
+    ```bash .dev.vars
+    ADMIN_TOKEN=your-local-dev-token
+    ```
+
+    <Warning>
+      Never commit `.dev.vars` to version control! This file contains sensitive tokens and is automatically ignored by Git.
+    </Warning>
+
+    <Tip>
+      Generate a secure token using:
+      ```bash
+      openssl rand -hex 32
+      ```
+    </Tip>
+  </Step>
+
+  <Step title="Start the development server">
+    <CodeGroup>
+    ```bash bun
+    bun dev
+    ```
+
+    ```bash npm
+    npm run dev
+    ```
+    </CodeGroup>
+
+    The server will start at `http://localhost:8787`
+  </Step>
+</Steps>
+
+## Accessing the API
+
+Once the development server is running, you can access:
+
+- **API Documentation**: `http://localhost:8787/docs` - Interactive Scalar API documentation
+- **OpenAPI Spec**: `http://localhost:8787/openapi.json` - Raw OpenAPI specification
+- **Root**: `http://localhost:8787/` - Redirects to `/docs`
+
+## Testing Admin Endpoints
+
+Test the admin endpoints using the token from your `.dev.vars` file:
+
+<CodeGroup>
+```bash Add a site
+curl -X POST http://localhost:8787/admin/sites \
+  -H "Authorization: Bearer your-local-dev-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "name": "Example Site",
+    "description": "A cool website",
+    "image": "https://example.com/banner.png"
+  }'
+```
+
+```bash Remove a site
+curl -X DELETE http://localhost:8787/admin/sites \
+  -H "Authorization: Bearer your-local-dev-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com"
+  }'
+```
+</CodeGroup>
+
+## Hot Reloading
+
+<Info>
+  Wrangler's dev server automatically reloads when you make changes to your code. No need to restart manually!
+</Info>
+
+## Configuration Files
+
+### wrangler.jsonc
+
+Your `wrangler.jsonc` defines the Worker configuration:
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openring",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OPENRING_KV",
+      "id": "YOUR_PRODUCTION_KV_ID",
+      "preview_id": "YOUR_PREVIEW_KV_ID"
+    }
+  ]
+}
+```
+
+<Note>
+  - `id`: Used for production deployments
+  - `preview_id`: Used for local development with `wrangler dev`
+</Note>
+
+### .dev.vars
+
+The `.dev.vars` file stores local secrets:
+
+```bash .dev.vars
+# Admin token for local development
+ADMIN_TOKEN=your-local-dev-token
+
+# Add other environment variables as needed
+```
+
+<Warning>
+  `.dev.vars` is only for **local development**. For production, use `wrangler secret put` to set secrets securely.
+</Warning>
+
+## Troubleshooting
+
+### Port Already in Use
+
+If port 8787 is already in use, specify a different port:
+
+```bash
+wrangler dev --port 8788
+```
+
+### KV Namespace Not Found
+
+If you see "KV namespace not found" errors:
+
+1. Verify your `preview_id` in `wrangler.jsonc` matches the output from `wrangler kv namespace create`
+2. Make sure you created the preview namespace with the `--preview` flag
+
+### Authentication Errors
+
+If admin endpoints return 401 Unauthorized:
+
+1. Check that your `.dev.vars` file exists in the project root
+2. Verify the `ADMIN_TOKEN` value matches the Bearer token in your requests
+3. Restart the dev server after changing `.dev.vars`
+
+## Next Steps
+
+- Learn how [authentication](/guides/authentication) works for admin endpoints
+- Understand [Cloudflare KV storage](/guides/cloudflare-kv) and data structure
+- Deploy to production with `wrangler deploy`

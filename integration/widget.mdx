@@ -1,0 +1,173 @@
+---
+title: HTML Widget Integration
+description: Add OpenRing navigation to your website with simple HTML snippets
+---
+
+The HTML widget provides a simple, no-JavaScript way to add webring navigation to your member sites. Perfect for static sites, blogs, and any HTML page.
+
+## Basic Widget
+
+The simplest integration uses three anchor tags with the `redirect=true` parameter to enable direct navigation:
+
+```html
+<div id="webring">
+  <a href="https://your-worker.workers.dev/prev?url=https://mysite.com&redirect=true">Previous</a>
+  <a href="https://your-worker.workers.dev/list">Ring</a>
+  <a href="https://your-worker.workers.dev/next?url=https://mysite.com&redirect=true">Next</a>
+</div>
+```
+
+<Note>
+Replace `https://your-worker.workers.dev` with your actual OpenRing API URL, and `https://mysite.com` with your site's full URL.
+</Note>
+
+## Understanding the redirect Parameter
+
+The `redirect=true` query parameter is crucial for widget functionality:
+
+<Steps>
+  <Step title="Without redirect parameter">
+    The API returns JSON data containing site information:
+    
+    ```json
+    {
+      "site": {
+        "url": "https://example.com",
+        "name": "Example Site",
+        "image": "https://example.com/banner.png",
+        "description": "A cool website"
+      },
+      "position": 2,
+      "total": 10
+    }
+    ```
+  </Step>
+  
+  <Step title="With redirect=true">
+    The API returns a `302 Found` redirect response, immediately taking the user to the next/previous site. This is essential for HTML-only widgets.
+  </Step>
+</Steps>
+
+<Info>
+The `redirect` parameter works with `/next`, `/prev`, and `/random` endpoints. It's not needed for the `/list` endpoint since that displays all sites.
+</Info>
+
+## Styled Widget Examples
+
+<Tabs>
+  <Tab title="Classic Webring">
+    ```html
+    <div style="
+      border: 2px solid #333;
+      padding: 10px;
+      text-align: center;
+      font-family: monospace;
+      background: #f0f0f0;
+    ">
+      <p style="margin: 0 0 10px 0; font-weight: bold;">Member of the OpenRing</p>
+      <a href="https://your-worker.workers.dev/prev?url=https://mysite.com&redirect=true">← Previous</a>
+      |
+      <a href="https://your-worker.workers.dev/list">All Sites</a>
+      |
+      <a href="https://your-worker.workers.dev/next?url=https://mysite.com&redirect=true">Next →</a>
+    </div>
+    ```
+  </Tab>
+  
+  <Tab title="Button Style">
+    ```html
+    <nav id="webring" style="display: flex; gap: 10px; justify-content: center;">
+      <a href="https://your-worker.workers.dev/prev?url=https://mysite.com&redirect=true" 
+         style="padding: 10px 20px; background: #333; color: white; text-decoration: none; border-radius: 4px;">
+        ← Prev
+      </a>
+      <a href="https://your-worker.workers.dev/list" 
+         style="padding: 10px 20px; background: #666; color: white; text-decoration: none; border-radius: 4px;">
+        Ring
+      </a>
+      <a href="https://your-worker.workers.dev/next?url=https://mysite.com&redirect=true" 
+         style="padding: 10px 20px; background: #333; color: white; text-decoration: none; border-radius: 4px;">
+        Next →
+      </a>
+    </nav>
+    ```
+  </Tab>
+  
+  <Tab title="Minimalist">
+    ```html
+    <footer>
+      <div id="webring">
+        <a href="https://your-worker.workers.dev/prev?url=https://mysite.com&redirect=true">←</a>
+        <a href="https://your-worker.workers.dev/list">webring</a>
+        <a href="https://your-worker.workers.dev/next?url=https://mysite.com&redirect=true">→</a>
+      </div>
+    </footer>
+    ```
+  </Tab>
+</Tabs>
+
+## Adding Random Navigation
+
+You can also include a link to visit a random site in the webring:
+
+```html
+<div id="webring">
+  <a href="https://your-worker.workers.dev/prev?url=https://mysite.com&redirect=true">Previous</a>
+  <a href="https://your-worker.workers.dev/random?exclude=https://mysite.com&redirect=true">Random</a>
+  <a href="https://your-worker.workers.dev/list">Ring</a>
+  <a href="https://your-worker.workers.dev/next?url=https://mysite.com&redirect=true">Next</a>
+</div>
+```
+
+<Tip>
+Notice the `exclude` parameter in the random link - this prevents users from "randomly" navigating to the same site they're already on.
+</Tip>
+
+## URL Encoding
+
+If your site URL contains special characters, make sure to URL-encode the `url` parameter:
+
+```html
+<!-- Site URL with query parameters -->
+<a href="https://your-worker.workers.dev/next?url=https%3A%2F%2Fmysite.com%2Fpage%3Fid%3D123&redirect=true">Next</a>
+```
+
+<Warning>
+Always use the full URL including `https://` in the `url` parameter. The API validates URLs and will reject partial URLs.
+</Warning>
+
+## Testing Your Widget
+
+Before deploying your widget:
+
+<Steps>
+  <Step title="Verify your site is in the webring">
+    Check the list endpoint: `https://your-worker.workers.dev/list`
+  </Step>
+  
+  <Step title="Test navigation links">
+    Click each link to ensure they redirect correctly to other sites in the ring
+  </Step>
+  
+  <Step title="Check edge cases">
+    If you're the only site or first/last site, verify the circular navigation works properly
+  </Step>
+</Steps>
+
+## Common Placement Locations
+
+- **Footer**: Most common location, keeps navigation persistent across pages
+- **Sidebar**: Good for blogs and content-heavy sites
+- **Header**: Less common but works for minimalist designs
+- **Dedicated page**: Create a `/webring` page showing all members
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="JavaScript Integration" icon="js" href="/integration/javascript">
+    Add dynamic navigation with automatic URL detection
+  </Card>
+  <Card title="Managing Sites" icon="gear" href="/integration/managing-sites">
+    Learn how to add and remove sites from your webring
+  </Card>
+</CardGroup>

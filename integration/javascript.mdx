@@ -1,0 +1,409 @@
+---
+title: JavaScript Integration
+description: Dynamic webring navigation with automatic URL detection and enhanced functionality
+---
+
+The JavaScript integration automatically detects the current page URL, making it perfect for sites where the widget code is shared across multiple pages or when you want more dynamic behavior.
+
+## Basic JavaScript Widget
+
+This implementation from the OpenRing README automatically detects `window.location.origin` to populate the navigation links:
+
+```html
+<div id="webring">
+  <a id="prev-link" href="#">Previous</a>
+  <a id="ring-link" href="https://your-worker.workers.dev/list">Ring</a>
+  <a id="next-link" href="#">Next</a>
+</div>
+
+<script>
+  const baseUrl = 'https://your-worker.workers.dev';
+  const currentSite = encodeURIComponent(window.location.origin);
+  
+  document.getElementById('prev-link').href = `${baseUrl}/prev?url=${currentSite}&redirect=true`;
+  document.getElementById('next-link').href = `${baseUrl}/next?url=${currentSite}&redirect=true`;
+</script>
+```
+
+<Info>
+This approach uses `redirect=true` so clicking links still provides instant navigation via HTTP redirects, but the URLs are dynamically generated.
+</Info>
+
+## Why Use JavaScript Integration?
+
+<CardGroup cols={2}>
+  <Card title="Template Reuse" icon="copy">
+    Use the same widget code across all pages without hardcoding URLs
+  </Card>
+  <Card title="Subdomain Support" icon="sitemap">
+    Automatically handles different subdomains or paths
+  </Card>
+  <Card title="Dynamic Updates" icon="rotate">
+    Fetch and display site information without page reloads
+  </Card>
+  <Card title="Enhanced UX" icon="sparkles">
+    Add loading states, prefetching, or hover previews
+  </Card>
+</CardGroup>
+
+## Advanced: Fetch-Based Navigation
+
+For a more app-like experience, fetch the API without `redirect=true` to get JSON data:
+
+<Tabs>
+  <Tab title="Fetch Implementation">
+    ```html
+    <div id="webring">
+      <button id="prev-btn">← Previous</button>
+      <a id="ring-link" href="https://your-worker.workers.dev/list">Ring</a>
+      <button id="next-btn">Next →</button>
+      <div id="preview"></div>
+    </div>
+
+    <script>
+      const baseUrl = 'https://your-worker.workers.dev';
+      const currentSite = encodeURIComponent(window.location.origin);
+
+      async function navigate(direction) {
+        try {
+          const response = await fetch(`${baseUrl}/${direction}?url=${currentSite}`);
+          const data = await response.json();
+          
+          if (data.site) {
+            // Show preview or navigate
+            showPreview(data.site);
+            // Or directly navigate:
+            // window.location.href = data.site.url;
+          }
+        } catch (error) {
+          console.error('Navigation failed:', error);
+        }
+      }
+
+      function showPreview(site) {
+        const preview = document.getElementById('preview');
+        preview.innerHTML = `
+          <h3>${site.name}</h3>
+          <p>${site.description || ''}</p>
+          <a href="${site.url}">Visit Site →</a>
+        `;
+      }
+
+      document.getElementById('prev-btn').addEventListener('click', () => navigate('prev'));
+      document.getElementById('next-btn').addEventListener('click', () => navigate('next'));
+    </script>
+    ```
+  </Tab>
+  
+  <Tab title="API Response">
+    When you omit `redirect=true`, the navigation endpoints return detailed JSON:
+
+    ```json
+    {
+      "site": {
+        "url": "https://example.com",
+        "name": "Example Site",
+        "image": "https://example.com/banner.png",
+        "description": "A cool website"
+      },
+      "position": 2,
+      "total": 10
+    }
+    ```
+
+    <Note>
+    The API returns a 404 error if your site is not found in the webring or if the ring is empty.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Site Preview Widget
+
+Show information about the next/previous site before navigating:
+
+```html
+<div id="webring">
+  <div class="preview-nav">
+    <div class="site-preview" id="prev-preview">
+      <span class="loading">Loading...</span>
+    </div>
+    <a href="https://your-worker.workers.dev/list">View All Sites</a>
+    <div class="site-preview" id="next-preview">
+      <span class="loading">Loading...</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const baseUrl = 'https://your-worker.workers.dev';
+  const currentSite = encodeURIComponent(window.location.origin);
+
+  async function loadPreview(direction, elementId) {
+    try {
+      const response = await fetch(`${baseUrl}/${direction}?url=${currentSite}`);
+      const data = await response.json();
+      
+      const element = document.getElementById(elementId);
+      element.innerHTML = `
+        <a href="${data.site.url}">
+          ${data.site.image ? `<img src="${data.site.image}" alt="${data.site.name}" width="88" height="31">` : ''}
+          <div>
+            <strong>${data.site.name}</strong>
+            <small>${data.site.description || ''}</small>
+          </div>
+        </a>
+      `;
+    } catch (error) {
+      document.getElementById(elementId).innerHTML = '<span>Unavailable</span>';
+    }
+  }
+
+  // Load previews on page load
+  loadPreview('prev', 'prev-preview');
+  loadPreview('next', 'next-preview');
+</script>
+
+<style>
+  .preview-nav {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  
+  .site-preview {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  .site-preview img {
+    display: block;
+    margin-bottom: 8px;
+  }
+</style>
+```
+
+<Tip>
+The traditional webring banner size is 88×31 pixels. The OpenRing API includes an optional `image` field for member sites to provide banner images.
+</Tip>
+
+## Random Site Widget
+
+Create a "surprise me" button that navigates to a random site:
+
+```html
+<button id="random-site">🎲 Random Site</button>
+
+<script>
+  const baseUrl = 'https://your-worker.workers.dev';
+  const currentSite = encodeURIComponent(window.location.origin);
+
+  document.getElementById('random-site').addEventListener('click', async () => {
+    try {
+      const response = await fetch(`${baseUrl}/random?exclude=${currentSite}`);
+      const data = await response.json();
+      
+      if (data.site) {
+        window.location.href = data.site.url;
+      }
+    } catch (error) {
+      console.error('Failed to get random site:', error);
+    }
+  });
+</script>
+```
+
+<Info>
+The `exclude` parameter prevents the random endpoint from returning the current site. It's optional but recommended for better user experience.
+</Info>
+
+## Displaying All Sites
+
+Fetch and display the complete list of webring members:
+
+```html
+<div id="webring-members">
+  <h2>Webring Members</h2>
+  <div id="sites-list"></div>
+</div>
+
+<script>
+  const baseUrl = 'https://your-worker.workers.dev';
+
+  async function loadAllSites() {
+    try {
+      const response = await fetch(`${baseUrl}/list`);
+      const data = await response.json();
+      
+      const listElement = document.getElementById('sites-list');
+      listElement.innerHTML = data.sites.map((site, index) => `
+        <div class="member-site">
+          <span class="position">${index + 1}</span>
+          ${site.image ? `<img src="${site.image}" alt="${site.name}">` : ''}
+          <div>
+            <a href="${site.url}">
+              <strong>${site.name}</strong>
+            </a>
+            ${site.description ? `<p>${site.description}</p>` : ''}
+          </div>
+        </div>
+      `).join('');
+    } catch (error) {
+      console.error('Failed to load sites:', error);
+    }
+  }
+
+  loadAllSites();
+</script>
+```
+
+<Tabs>
+  <Tab title="API Response">
+    The `/list` endpoint returns:
+
+    ```json
+    {
+      "sites": [
+        {
+          "url": "https://site1.com",
+          "name": "First Site",
+          "image": "https://site1.com/banner.png",
+          "description": "Description here"
+        },
+        {
+          "url": "https://site2.com",
+          "name": "Second Site"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Type Definition">
+    Based on the source code at `src/types/index.ts:1`:
+
+    ```typescript
+    interface Site {
+      url: string;
+      name: string;
+      image?: string;  // Optional 88x31 banner
+      description?: string;
+    }
+
+    interface SitesList {
+      sites: Site[];
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+Properly handle API errors for a better user experience:
+
+```javascript
+const baseUrl = 'https://your-worker.workers.dev';
+const currentSite = encodeURIComponent(window.location.origin);
+
+async function navigateWithErrorHandling(direction) {
+  try {
+    const response = await fetch(`${baseUrl}/${direction}?url=${currentSite}`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      
+      if (response.status === 404) {
+        alert('This site is not registered in the webring yet!');
+      } else {
+        console.error('Navigation error:', error);
+      }
+      return;
+    }
+    
+    const data = await response.json();
+    window.location.href = data.site.url;
+  } catch (error) {
+    console.error('Network error:', error);
+    alert('Failed to connect to the webring. Please try again later.');
+  }
+}
+```
+
+<Warning>
+The API returns a 404 status with error message when:
+- The requested site is not found in the webring
+- The webring is empty
+- An invalid URL parameter is provided
+</Warning>
+
+## Performance Optimization
+
+<Steps>
+  <Step title="Preload navigation links">
+    Use `<link rel="preconnect">` to speed up API requests:
+    
+    ```html
+    <link rel="preconnect" href="https://your-worker.workers.dev">
+    ```
+  </Step>
+  
+  <Step title="Cache API responses">
+    Store the list of sites in localStorage to reduce API calls:
+    
+    ```javascript
+    const CACHE_KEY = 'webring-sites';
+    const CACHE_DURATION = 3600000; // 1 hour
+
+    async function getCachedSites() {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          return data;
+        }
+      }
+      
+      const response = await fetch(`${baseUrl}/list`);
+      const data = await response.json();
+      
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+      
+      return data;
+    }
+    ```
+  </Step>
+  
+  <Step title="Prefetch next/prev pages">
+    Load the next and previous sites in the background:
+    
+    ```javascript
+    // Prefetch links on hover
+    document.getElementById('next-link').addEventListener('mouseenter', async () => {
+      const response = await fetch(`${baseUrl}/next?url=${currentSite}`);
+      const data = await response.json();
+      // Optionally prefetch the actual page
+      if (data.site?.url) {
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = data.site.url;
+        document.head.appendChild(link);
+      }
+    });
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="HTML Widget" icon="code" href="/integration/widget">
+    Simple HTML-only integration for static sites
+  </Card>
+  <Card title="Managing Sites" icon="list" href="/integration/managing-sites">
+    Add and remove sites using the admin API
+  </Card>
+</CardGroup>

@@ -1,0 +1,114 @@
+---
+title: 'Get Previous Site'
+description: 'Get the previous site in the webring before the specified URL'
+---
+
+## Endpoint
+
+```
+GET /prev
+```
+
+Get the previous site in the webring before the specified URL. The webring wraps around, so the previous site before the first site is the last site.
+
+## Query Parameters
+
+<ParamField query="url" type="string" required>
+  Full URL of the current site in the webring.
+  
+  **Example:** `https://example.com`
+</ParamField>
+
+<ParamField query="redirect" type="boolean" default="false">
+  If `true`, returns a 302 redirect to the previous site instead of JSON response.
+  
+  **Example:** `true`
+</ParamField>
+
+## Response
+
+<ResponseField name="site" type="object" required>
+  The previous site in the webring.
+  
+  <Expandable title="Site Object">
+    <ResponseField name="url" type="string" required>
+      Full URL of the site.
+    </ResponseField>
+    
+    <ResponseField name="name" type="string" required>
+      Display name of the site.
+    </ResponseField>
+    
+    <ResponseField name="image" type="string">
+      Banner or avatar image URL.
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Short description of the site.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="position" type="number" required>
+  1-indexed position of the returned site in the webring.
+</ResponseField>
+
+<ResponseField name="total" type="number" required>
+  Total number of sites in the webring.
+</ResponseField>
+
+## Status Codes
+
+- **200 OK** - Successfully returned the previous site
+- **302 Found** - Redirect to the previous site (when `redirect=true`)
+- **400 Bad Request** - Invalid request - missing or invalid URL parameter
+- **404 Not Found** - Site not found in webring or webring is empty
+
+## Examples
+
+<CodeGroup>
+
+```bash curl
+curl "https://openring.dev/prev?url=https://example.com"
+```
+
+```bash With redirect
+curl "https://openring.dev/prev?url=https://example.com&redirect=true"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://openring.dev/prev?url=https://example.com'
+);
+const data = await response.json();
+console.log(data.site);
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json 200 OK
+{
+  "site": {
+    "url": "https://prevsite.com",
+    "name": "Previous Site",
+    "image": "https://prevsite.com/banner.png",
+    "description": "A cool website"
+  },
+  "position": 10,
+  "total": 10
+}
+```
+
+```json 404 Not Found
+{
+  "error": "Site not found in webring"
+}
+```
+
+```json 404 Webring Empty
+{
+  "error": "Webring is empty"
+}
+```

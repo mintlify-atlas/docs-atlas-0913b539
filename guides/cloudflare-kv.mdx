@@ -1,0 +1,379 @@
+---
+title: Cloudflare KV Storage
+description: Understanding how OpenRing uses Cloudflare KV to store and retrieve webring sites
+---
+
+OpenRing uses [Cloudflare KV](https://developers.cloudflare.com/kv/) (Key-Value storage) to persist the list of sites in your webring. This guide explains the KV structure and how data is stored and retrieved.
+
+## What is Cloudflare KV?
+
+Cloudflare KV is a globally distributed key-value data store that provides:
+
+- **Low latency reads**: Data is cached at Cloudflare's edge locations worldwide
+- **Eventual consistency**: Writes propagate globally within seconds
+- **Simple API**: Get, put, delete, and list operations
+- **Cost-effective**: Free tier includes 100,000 read operations per day
+
+<Info>
+  KV is optimized for high-read, low-write workloads - perfect for a webring where sites are read frequently but modified rarely.
+</Info>
+
+## KV Structure
+
+OpenRing uses a single KV key to store all webring sites:
+
+### Key Name
+
+```typescript src/utils/index.ts
+const sitesKey = "sites:list";
+```
+
+The key `sites:list` stores the entire webring as a JSON object.
+
+### Data Structure
+
+The value stored at `sites:list` follows this TypeScript interface:
+
+```typescript src/types/index.ts
+export interface Site {
+  url: string;
+  name: string;
+  image?: string;        // 88x31 image
+  description?: string;
+}
+
+export interface SitesList {
+  sites: Site[];
+}
+```
+
+<Note>
+  The `image` field is intended for classic 88x31 pixel webring buttons, though any image URL works.
+</Note>
+
+### Example KV Data
+
+```json
+{
+  "sites": [
+    {
+      "url": "https://example.com",
+      "name": "Example Site",
+      "image": "https://example.com/button.png",
+      "description": "A cool website"
+    },
+    {
+      "url": "https://another.com",
+      "name": "Another Site",
+      "description": "Another member of the ring"
+    }
+  ]
+}
+```
+
+## Reading from KV
+
+The `getSitesList` function retrieves the sites list from KV (`src/utils/index.ts:5-11`):
+
+```typescript src/utils/index.ts
+export const getSitesList = async (kv: KVNamespace): Promise<SitesList> => {
+  const data = await kv.get<SitesList>(sitesKey, "json");
+  if (!(data && Array.isArray(data.sites))) {
+    return { sites: [] };
+  }
+  return { sites: data.sites };
+};
+```
+
+<Steps>
+  <Step title="Fetch from KV">
+    ```typescript
+    const data = await kv.get<SitesList>(sitesKey, "json");
+    ```
+
+    The `"json"` parameter tells KV to automatically parse the stored JSON string into an object.
+  </Step>
+
+  <Step title="Validate structure">
+    ```typescript
+    if (!(data && Array.isArray(data.sites))) {
+      return { sites: [] };
+    }
+    ```
+
+    If the key doesn't exist or the data is malformed, return an empty sites array.
+  </Step>
+
+  <Step title="Return typed data">
+    ```typescript
+    return { sites: data.sites };
+    ```
+
+    Return the validated `SitesList` object.
+  </Step>
+</Steps>
+
+## Writing to KV
+
+The `saveSitesList` function writes the sites list to KV (`src/utils/index.ts:13-18`):
+
+```typescript src/utils/index.ts
+export const saveSitesList = async (
+  kv: KVNamespace,
+  sitesList: SitesList
+): Promise<void> => {
+  await kv.put(sitesKey, JSON.stringify(sitesList));
+};
+```
+
+<Note>
+  KV stores values as strings, so we use `JSON.stringify()` to convert the object to a JSON string before storing.
+</Note>
+
+## Usage in Admin Endpoints
+
+### Adding a Site
+
+Here's how the `POST /admin/sites` endpoint uses KV (`src/routes/admin.ts:100-134`):
+
+```typescript src/routes/admin.ts
+admin.openapi(addSiteRoute, async (c) => {
+  const body = c.req.valid("json");
+
+  const site: Site = {
+    url: body.url,
+    name: body.name,
+    image: body.image,
+    description: body.description,
+  };
+
+  try {
+    // 1. Get current sites list from KV
+    const list = await getSitesList(c.env.OPENRING_KV);
+    
+    // 2. Check if site already exists
+    const exists = list.sites.some((item) => item.url === site.url);
+    if (exists) {
+      return c.json({ error: "Site already exists in the webring" }, 409);
+    }
+
+    // 3. Add new site to the array
+    const updated = {
+      sites: [...list.sites, site],
+    };
+    
+    // 4. Save updated list back to KV
+    await saveSitesList(c.env.OPENRING_KV, updated);
+    return c.json(site, 201);
+  } catch {
+    return c.json({ error: "Failed to add site" }, 500);
+  }
+});
+```
+
+### Removing a Site
+
+The `DELETE /admin/sites` endpoint removes sites from KV (`src/routes/admin.ts:201-229`):
+
+```typescript src/routes/admin.ts
+admin.openapi(deleteSiteRoute, async (c) => {
+  const body = c.req.valid("json");
+
+  try {
+    // 1. Get current sites list from KV
+    const list = await getSitesList(c.env.OPENRING_KV);
+    
+    // 2. Find the site to remove
+    const index = list.sites.findIndex((item) => item.url === body.url);
+    if (index === -1) {
+      return c.json({ error: "Site not found in webring" }, 404);
+    }
+
+    const removed = list.sites[index];
+    
+    // 3. Filter out the removed site
+    const updated = {
+      sites: list.sites.filter((_, i) => i !== index),
+    };
+    
+    // 4. Save updated list back to KV
+    await saveSitesList(c.env.OPENRING_KV, updated);
+    return c.json(removed, 200);
+  } catch {
+    return c.json({ error: "Failed to remove site" }, 500);
+  }
+});
+```
+
+## KV Binding Configuration
+
+The KV namespace is configured in `wrangler.jsonc`:
+
+```jsonc wrangler.jsonc
+{
+  "kv_namespaces": [
+    {
+      "binding": "OPENRING_KV",
+      "id": "092b9431fd58421680ff10bd1cc13701",
+      "preview_id": "beb621e3e59647e08d55bfdfc21b2486"
+    }
+  ]
+}
+```
+
+- **binding**: The variable name used in code (`c.env.OPENRING_KV`)
+- **id**: Production KV namespace ID
+- **preview_id**: Local development KV namespace ID
+
+<Warning>
+  Replace these IDs with your own when deploying! Create namespaces using `wrangler kv namespace create`.
+</Warning>
+
+## Creating KV Namespaces
+
+### Production Namespace
+
+```bash
+wrangler kv namespace create OPENRING_KV
+```
+
+Output:
+```
+{ binding = "OPENRING_KV", id = "092b9431fd58421680ff10bd1cc13701" }
+```
+
+### Preview Namespace (Local Development)
+
+```bash
+wrangler kv namespace create OPENRING_KV --preview
+```
+
+Output:
+```
+{ binding = "OPENRING_KV", preview_id = "beb621e3e59647e08d55bfdfc21b2486" }
+```
+
+<Tip>
+  Using separate namespaces for production and development prevents test data from affecting your live webring.
+</Tip>
+
+## KV Operations via CLI
+
+### View the sites list
+
+```bash
+wrangler kv key get --namespace-id=YOUR_NAMESPACE_ID "sites:list"
+```
+
+### Manually add data
+
+```bash
+wrangler kv key put --namespace-id=YOUR_NAMESPACE_ID "sites:list" \
+  '{"sites":[{"url":"https://example.com","name":"Example"}]}'
+```
+
+### List all keys
+
+```bash
+wrangler kv key list --namespace-id=YOUR_NAMESPACE_ID
+```
+
+### Delete the sites list
+
+```bash
+wrangler kv key delete --namespace-id=YOUR_NAMESPACE_ID "sites:list"
+```
+
+<Warning>
+  Deleting `sites:list` will remove all sites from your webring! The API will return empty results until you add sites again.
+</Warning>
+
+## KV Performance Characteristics
+
+### Read Performance
+
+- **Global caching**: Reads are served from the nearest Cloudflare data center
+- **Sub-millisecond latency**: Cached data is extremely fast
+- **Unlimited reads**: The free tier includes 100,000 reads/day
+
+### Write Performance
+
+- **Eventual consistency**: Writes propagate globally in ~60 seconds
+- **Higher latency**: Writes take longer than reads
+- **Rate limits**: 1 write per second per key recommended
+
+<Info>
+  For OpenRing, eventual consistency is acceptable - a new site taking 60 seconds to appear globally is reasonable for a webring.
+</Info>
+
+## Data Size Limits
+
+- **Key size**: Maximum 512 bytes (our `"sites:list"` key is well within this)
+- **Value size**: Maximum 25 MiB
+- **Practical limit**: Each site is ~200 bytes, so you can store ~125,000 sites before hitting the 25 MiB limit
+
+<Note>
+  A typical webring with 100 sites uses less than 20 KB of KV storage.
+</Note>
+
+## Best Practices
+
+<Steps>
+  <Step title="Use descriptive key names">
+    The `sites:list` key clearly indicates what data it contains. Use prefixes for namespacing if you store multiple data types.
+  </Step>
+
+  <Step title="Validate data structure">
+    Always validate KV data before using it, as shown in `getSitesList`. KV doesn't enforce schemas.
+  </Step>
+
+  <Step title="Handle missing keys gracefully">
+    Return sensible defaults (like an empty array) when keys don't exist.
+  </Step>
+
+  <Step title="Minimize writes">
+    KV is optimized for reads. Batch multiple changes together when possible.
+  </Step>
+
+  <Step title="Use atomic operations">
+    Read-modify-write operations (like adding a site) should be atomic to prevent race conditions.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Empty sites list
+
+If `/list` returns no sites:
+
+1. Check if the `sites:list` key exists:
+   ```bash
+   wrangler kv key get --namespace-id=YOUR_ID "sites:list"
+   ```
+
+2. Manually create the key if missing:
+   ```bash
+   wrangler kv key put --namespace-id=YOUR_ID "sites:list" '{"sites":[]}'
+   ```
+
+### KV namespace not found
+
+If you see "KV namespace not found" errors:
+
+1. Verify your namespace IDs in `wrangler.jsonc`
+2. Ensure you created both production and preview namespaces
+3. Check that the binding name is `OPENRING_KV`
+
+### Data not updating
+
+If changes don't appear immediately:
+
+1. Remember KV has eventual consistency (~60 seconds)
+2. Check if you're using the correct namespace (production vs preview)
+3. Verify writes succeeded by checking the KV directly
+
+## Next Steps
+
+- Set up [local development](/guides/local-development) with preview KV namespaces
+- Learn about [authentication](/guides/authentication) for admin endpoints
+- Explore the [API Reference](/api/admin/add-site) for site management

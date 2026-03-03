@@ -1,0 +1,117 @@
+---
+title: 'Get Random Site'
+description: 'Get a random site from the webring'
+---
+
+## Endpoint
+
+```
+GET /random
+```
+
+Get a random site from the webring. Optionally exclude a specific URL from the random selection.
+
+## Query Parameters
+
+<ParamField query="exclude" type="string">
+  URL to exclude from random selection. Useful to exclude the current site.
+  
+  **Example:** `https://example.com`
+</ParamField>
+
+<ParamField query="redirect" type="boolean" default="false">
+  If `true`, returns a 302 redirect to the random site instead of JSON response.
+  
+  **Example:** `true`
+</ParamField>
+
+## Response
+
+<ResponseField name="site" type="object" required>
+  A randomly selected site from the webring.
+  
+  <Expandable title="Site Object">
+    <ResponseField name="url" type="string" required>
+      Full URL of the site.
+    </ResponseField>
+    
+    <ResponseField name="name" type="string" required>
+      Display name of the site.
+    </ResponseField>
+    
+    <ResponseField name="image" type="string">
+      Banner or avatar image URL.
+    </ResponseField>
+    
+    <ResponseField name="description" type="string">
+      Short description of the site.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="position" type="number" required>
+  1-indexed position of the returned site in the webring.
+</ResponseField>
+
+<ResponseField name="total" type="number" required>
+  Total number of sites in the webring.
+</ResponseField>
+
+## Status Codes
+
+- **200 OK** - Successfully returned a random site
+- **302 Found** - Redirect to a random site (when `redirect=true`)
+- **404 Not Found** - No sites available in webring or all sites excluded
+
+## Examples
+
+<CodeGroup>
+
+```bash curl
+curl "https://openring.dev/random"
+```
+
+```bash Exclude current site
+curl "https://openring.dev/random?exclude=https://example.com"
+```
+
+```bash With redirect
+curl "https://openring.dev/random?exclude=https://example.com&redirect=true"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://openring.dev/random?exclude=https://mysite.com'
+);
+const data = await response.json();
+console.log(data.site);
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json 200 OK
+{
+  "site": {
+    "url": "https://randomsite.com",
+    "name": "Random Site",
+    "image": "https://randomsite.com/banner.png",
+    "description": "A cool website"
+  },
+  "position": 5,
+  "total": 10
+}
+```
+
+```json 404 Webring Empty
+{
+  "error": "Webring is empty"
+}
+```
+
+```json 404 No Available Sites
+{
+  "error": "No other sites available in webring"
+}
+```
